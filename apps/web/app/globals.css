@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+html,
+body {
+  background: #09090b;
+  color: #fafafa;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-feature-settings: "tnum";
+}
+
+.card {
+  background: #0f0f11;
+  border: 1px solid #1f1f23;
+  border-radius: 10px;
+}
+
+.row-hover tr:hover {
+  background: #121215;
+}
+
+.score-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 12px;
+  border: 1px solid;
+}
+
+.s-hi {
+  color: #fbbf24;
+  border-color: #78350f;
+  background: rgba(251, 191, 36, 0.08);
+}
+.s-mid {
+  color: #a3a3a3;
+  border-color: #2a2a2e;
+  background: rgba(161, 161, 161, 0.05);
+}
+.s-lo {
+  color: #6b7280;
+  border-color: #1f2937;
+  background: rgba(107, 114, 128, 0.05);
+}
+.s-hot {
+  color: #f87171;
+  border-color: #7f1d1d;
+  background: rgba(248, 113, 113, 0.08);
+}
+.s-str {
+  color: #34d399;
+  border-color: #064e3b;
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.divider {
+  height: 1px;
+  background: #1f1f23;
+}
+
+.bar {
+  background: linear-gradient(90deg, #27272a 0%, #3f3f46 100%);
+  border-radius: 2px;
+}
+
+.bar-accent {
+  background: linear-gradient(90deg, #92400e 0%, #f59e0b 100%);
+  border-radius: 2px;
+}
+
+.kbd {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid #2a2a2e;
+  border-radius: 4px;
+  color: #a1a1aa;
+}

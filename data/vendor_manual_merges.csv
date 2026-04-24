@@ -1,0 +1,6 @@
+canonical_uei,alias_uei,canonical_name,note
+# Manually-curated vendor merges applied AFTER automated entity resolution.
+# Format: map alias_uei → canonical_uei. Names are informational only.
+# Example entries (uncomment + edit with real UEIs):
+# JDYNCXXXXXX1,JDYNCXXXXXX2,Leidos Inc.,Legal entity consolidation post-Lockheed IS&GS merger
+# PERATXXXXXX1,PERSPXXXXXX1,Peraton,Rename from Perspecta (2021 acquisition)

@@ -1,0 +1,37 @@
+name: recompete
+version: "0.1.0"
+config-version: 2
+
+profile: recompete
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  recompete:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  recompete:
+    +schema: reference
+
+vars:
+  # MVP slice — widen in Phase 2
+  target_agency_code: "070"           # DHS (CGAC)
+  target_naics: ["541511", "541512"]  # IT services

@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: raw
+    database: "{{ env_var('DBT_DBNAME', 'recompete') }}"
+    schema: raw
+    description: "Landing zone for ingested public procurement data."
+    tables:
+      - name: award_transactions
+        description: >
+          USASpending.gov prime contract award transactions, one row per
+          modification action. Loaded by `pipelines/load_to_postgres.py`.
+        columns:
+          - name: award_unique_key
+            description: USASpending-generated award identifier (stable across mods).
+          - name: piid
+            description: Procurement Instrument Identifier — FPDS contract number.
+          - name: recipient_uei
+            description: Unique Entity Identifier (post-2022 canonical key).
+          - name: recipient_duns
+            description: Legacy DUNS — present for pre-2022 actions.
+          - name: naics_code
+            description: North American Industry Classification System code.
+          - name: psc_code
+            description: Product or Service Code (supply/service/R&D classification).
+          - name: action_date
+            description: Date the modification was signed.
+          - name: pop_current_end_date
+            description: Current period-of-performance end date (drives recompete timing).

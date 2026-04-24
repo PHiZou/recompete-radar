@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: stg_usaspending__award_transactions
+    description: >
+      Cleaned, typed view over raw USASpending prime contract transactions.
+      One row per modification action. Dollars coalesced to 0.
+    columns:
+      - name: award_unique_key
+        description: Stable key identifying a single award across all its mods.
+        tests:
+          - not_null
+      - name: action_date
+        description: Modification signature date.
+        tests:
+          - not_null
+      - name: action_type
+        description: Code for the type of action (A = initial, B = additional work, etc.).
+      - name: fiscal_year
+        description: Federal fiscal year (Oct–Sep) the action falls in.
+        tests:
+          - not_null
+      - name: naics_code
+        description: NAICS code at time of action.
+      - name: pop_current_end_date
+        description: Current (post-mod) period-of-performance end date.

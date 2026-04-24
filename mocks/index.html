@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Recompete Radar — MVP Mockups</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html, body { background: #09090b; color: #fafafa; font-family: 'Inter', system-ui, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-feature-settings: 'tnum'; }
+  .card { background: #0f0f11; border: 1px solid #1f1f23; border-radius: 10px; }
+  .row-hover tr:hover { background: #121215; }
+  .score-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; border: 1px solid; }
+  .s-hi  { color: #fbbf24; border-color: #78350f; background: rgba(251,191,36,0.08); }
+  .s-mid { color: #a3a3a3; border-color: #2a2a2e; background: rgba(161,161,161,0.05); }
+  .s-lo  { color: #6b7280; border-color: #1f2937; background: rgba(107,114,128,0.05); }
+  .s-hot { color: #f87171; border-color: #7f1d1d; background: rgba(248,113,113,0.08); }
+  .s-str { color: #34d399; border-color: #064e3b; background: rgba(52,211,153,0.08); }
+  .divider { height: 1px; background: #1f1f23; }
+  .tab-active { color: #fafafa; border-color: #fafafa; }
+  .tab-idle { color: #71717a; border-color: transparent; }
+  .tab-idle:hover { color: #d4d4d8; }
+  .kbd { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 1px 6px; border: 1px solid #2a2a2e; border-radius: 4px; color: #a1a1aa; }
+  .bar { background: linear-gradient(90deg, #27272a 0%, #3f3f46 100%); border-radius: 2px; }
+  .bar-accent { background: linear-gradient(90deg, #92400e 0%, #f59e0b 100%); border-radius: 2px; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  .scroll-fade { mask-image: linear-gradient(to bottom, black 85%, transparent 100%); }
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Top bar -->
+<header class="border-b border-[#1f1f23] bg-[#0a0a0c] sticky top-0 z-20 backdrop-blur">
+  <div class="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-6 h-6 rounded-md bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0a0a0c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3" fill="#0a0a0c"/></svg>
+      </div>
+      <span class="font-semibold tracking-tight">Recompete Radar</span>
+      <span class="text-xs text-zinc-500 border border-[#1f1f23] rounded-md px-2 py-0.5 ml-1 mono">mvp · preview</span>
+    </div>
+    <nav class="flex items-center gap-1">
+      <button data-tab="radar"  class="tab-btn px-3 h-9 text-sm border-b-2 tab-active">Radar</button>
+      <button data-tab="vendor" class="tab-btn px-3 h-9 text-sm border-b-2 tab-idle">Vendor</button>
+      <button data-tab="agency" class="tab-btn px-3 h-9 text-sm border-b-2 tab-idle">Agency</button>
+    </nav>
+    <div class="flex items-center gap-3 text-sm text-zinc-400">
+      <span class="kbd">⌘ K</span>
+      <span class="mono text-xs">v0.1 · FY2020–2025</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-6 py-6">
+
+<!-- ====================================================== -->
+<!-- SCREEN 1 — RECOMPETE RADAR                             -->
+<!-- ====================================================== -->
+<section id="tab-radar" class="tab-panel">
+
+  <!-- Filter row -->
+  <div class="flex items-center gap-3 mb-5 flex-wrap">
+    <div class="flex items-center gap-2 px-3 h-9 card text-sm">
+      <span class="text-zinc-500 text-xs uppercase tracking-wider">Agency</span>
+      <span class="font-medium">Department of Homeland Security</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="flex items-center gap-2 px-3 h-9 card text-sm">
+      <span class="text-zinc-500 text-xs uppercase tracking-wider">NAICS</span>
+      <span class="mono font-medium">541511, 541512</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="flex items-center gap-2 px-3 h-9 card text-sm">
+      <span class="text-zinc-500 text-xs uppercase tracking-wider">POP ends within</span>
+      <span class="font-medium">12 months</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="flex items-center gap-2 px-3 h-9 card text-sm">
+      <span class="text-zinc-500 text-xs uppercase tracking-wider">Min score</span>
+      <span class="mono font-medium">60</span>
+    </div>
+    <div class="ml-auto flex items-center gap-2">
+      <button class="px-3 h-9 card text-sm text-zinc-400 hover:text-zinc-100">Export CSV</button>
+      <button class="px-3 h-9 rounded-md bg-amber-500 text-zinc-950 text-sm font-medium hover:bg-amber-400">Save view</button>
+    </div>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="grid grid-cols-4 gap-3 mb-5">
+    <div class="card px-4 py-3">
+      <div class="text-xs text-zinc-500 uppercase tracking-wider">Candidates</div>
+      <div class="mono text-2xl font-semibold mt-1">47</div>
+      <div class="text-xs text-zinc-500 mt-1">↑ 12 vs prior 12mo</div>
+    </div>
+    <div class="card px-4 py-3">
+      <div class="text-xs text-zinc-500 uppercase tracking-wider">$ at stake</div>
+      <div class="mono text-2xl font-semibold mt-1">$4.82<span class="text-zinc-500 text-lg">B</span></div>
+      <div class="text-xs text-zinc-500 mt-1">obligated, base + options</div>
+    </div>
+    <div class="card px-4 py-3">
+      <div class="text-xs text-zinc-500 uppercase tracking-wider">Top incumbent</div>
+      <div class="text-xl font-semibold mt-1">Leidos</div>
+      <div class="text-xs text-zinc-500 mt-1">$1.14B across 9 awards</div>
+    </div>
+    <div class="card px-4 py-3">
+      <div class="text-xs text-zinc-500 uppercase tracking-wider">Market HHI</div>
+      <div class="mono text-2xl font-semibold mt-1">412</div>
+      <div class="text-xs text-emerald-400 mt-1">low concentration · competitive</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+      <div class="text-sm text-zinc-400">Recompete candidates · sorted by <span class="text-zinc-100">recompete score</span></div>
+      <div class="flex items-center gap-3 text-xs text-zinc-500">
+        <span>47 rows</span>
+        <span>·</span>
+        <span>updated 2026-04-21</span>
+      </div>
+    </div>
+    <table class="w-full text-sm row-hover">
+      <thead class="text-left text-zinc-500 text-xs uppercase tracking-wider">
+        <tr class="border-b border-[#1f1f23]">
+          <th class="px-4 py-2.5 font-medium">Contract</th>
+          <th class="px-4 py-2.5 font-medium">Sub-agency</th>
+          <th class="px-4 py-2.5 font-medium">Incumbent</th>
+          <th class="px-4 py-2.5 font-medium">POP end</th>
+          <th class="px-4 py-2.5 font-medium text-right">Value</th>
+          <th class="px-4 py-2.5 font-medium text-right">Recompete</th>
+          <th class="px-4 py-2.5 font-medium text-right">Incumbent str.</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[#141417]">
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">FEMA Mission Support Services</div>
+            <div class="mono text-xs text-zinc-500">70FA20-21-F-00184 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">FEMA</td>
+          <td class="px-4 py-3">Booz Allen Hamilton</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-03-31 <span class="text-zinc-500 text-xs">· 11mo</span></td>
+          <td class="px-4 py-3 mono text-right">$156.2M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hot">94</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">70</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">TABSS Enterprise Services — Lot 3</div>
+            <div class="mono text-xs text-zinc-500">HSCEMS-19-F-00022 · 541511</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">ICE</td>
+          <td class="px-4 py-3">Peraton</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-06-30 <span class="text-zinc-500 text-xs">· 14mo</span></td>
+          <td class="px-4 py-3 mono text-right">$285.0M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hot">92</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">65</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">EAGLE III Functional Category 1</div>
+            <div class="mono text-xs text-zinc-500">HSHQDC-16-D-E2001 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">DHS HQ</td>
+          <td class="px-4 py-3">CACI Inc.</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-07-10 <span class="text-zinc-500 text-xs">· 15mo</span></td>
+          <td class="px-4 py-3 mono text-right">$518.4M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">89</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-str">80</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">EAGLE III Functional Category 2</div>
+            <div class="mono text-xs text-zinc-500">HSHQDC-16-D-E2048 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">CBP</td>
+          <td class="px-4 py-3">Leidos</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-09-30 <span class="text-zinc-500 text-xs">· 17mo</span></td>
+          <td class="px-4 py-3 mono text-right">$412.7M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">87</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">78</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">USCIS ELIS Platform Development</div>
+            <div class="mono text-xs text-zinc-500">70SBUR-22-F-00047 · 541511</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">USCIS</td>
+          <td class="px-4 py-3">General Dynamics IT</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-08-15 <span class="text-zinc-500 text-xs">· 16mo</span></td>
+          <td class="px-4 py-3 mono text-right">$224.1M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">85</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-str">88</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">CBP ACE Modernization</div>
+            <div class="mono text-xs text-zinc-500">70B02C-20-F-00017 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">CBP</td>
+          <td class="px-4 py-3">Accenture Federal Services</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-11-30 <span class="text-zinc-500 text-xs">· 19mo</span></td>
+          <td class="px-4 py-3 mono text-right">$194.8M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">81</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">72</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">HSIN Sustainment &amp; Evolution</div>
+            <div class="mono text-xs text-zinc-500">70SBUR-21-F-00102 · 541511</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">DHS HQ</td>
+          <td class="px-4 py-3">ManTech</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-05-01 <span class="text-zinc-500 text-xs">· 12mo</span></td>
+          <td class="px-4 py-3 mono text-right">$72.3M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">78</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-lo">55</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">Coast Guard Cyber Operations Support</div>
+            <div class="mono text-xs text-zinc-500">70Z023-22-F-00090 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">USCG</td>
+          <td class="px-4 py-3">Northrop Grumman</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-10-15 <span class="text-zinc-500 text-xs">· 18mo</span></td>
+          <td class="px-4 py-3 mono text-right">$112.6M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">74</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">68</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">CISA Vulnerability Disclosure Platform</div>
+            <div class="mono text-xs text-zinc-500">70RCSA-21-F-00014 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">CISA</td>
+          <td class="px-4 py-3">General Dynamics IT</td>
+          <td class="px-4 py-3 mono text-zinc-300">2026-12-15 <span class="text-zinc-500 text-xs">· 20mo</span></td>
+          <td class="px-4 py-3 mono text-right">$88.4M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-hi">71</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-str">82</span></td>
+        </tr>
+        <tr class="cursor-pointer">
+          <td class="px-4 py-3">
+            <div class="font-medium">TSA IT Infrastructure Services</div>
+            <div class="mono text-xs text-zinc-500">HSTS03-19-D-SS005 · 541512</div>
+          </td>
+          <td class="px-4 py-3 text-zinc-300">TSA</td>
+          <td class="px-4 py-3">SAIC</td>
+          <td class="px-4 py-3 mono text-zinc-300">2027-01-20 <span class="text-zinc-500 text-xs">· 21mo</span></td>
+          <td class="px-4 py-3 mono text-right">$341.5M</td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">68</span></td>
+          <td class="px-4 py-3 text-right"><span class="score-pill s-mid">75</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="flex items-center justify-between px-4 py-3 border-t border-[#1f1f23] text-xs text-zinc-500">
+      <span>Showing 10 of 47 · click any row for score breakdown</span>
+      <span class="mono">1 / 5 →</span>
+    </div>
+  </div>
+
+  <!-- Score explainer drawer (inline teaser) -->
+  <div class="mt-5 card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Drawer preview · row click</div>
+        <div class="text-base font-medium mt-0.5">Why recompete score is <span class="mono text-amber-400">94</span> — FEMA Mission Support Services</div>
+      </div>
+      <span class="text-xs text-zinc-500 mono">every score is decomposed — no black box</span>
+    </div>
+    <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+      <div class="flex items-center justify-between"><span class="text-zinc-400">POP ends within 12 months</span><span class="mono text-emerald-400">+30</span></div>
+      <div class="flex items-center justify-between"><span class="text-zinc-400">Contract type is definitive (single-award BPA call)</span><span class="mono text-emerald-400">+15</span></div>
+      <div class="flex items-center justify-between"><span class="text-zinc-400">FEMA historically recompetes 541512 (72% over 10yr)</span><span class="mono text-emerald-400">+20</span></div>
+      <div class="flex items-center justify-between"><span class="text-zinc-400">Value &gt; FEMA median for NAICS ($42M)</span><span class="mono text-emerald-400">+15</span></div>
+      <div class="flex items-center justify-between"><span class="text-zinc-400">No POP-extending mods in last 12mo</span><span class="mono text-emerald-400">+15</span></div>
+      <div class="flex items-center justify-between"><span class="text-zinc-400">Set-aside status changed (SB → unrestricted)</span><span class="mono text-zinc-500">−1</span></div>
+    </div>
+    <div class="divider my-4"></div>
+    <div class="flex items-center justify-between text-sm">
+      <span class="text-zinc-500">Total · capped at 100</span>
+      <span class="mono font-semibold text-amber-400 text-lg">94</span>
+    </div>
+  </div>
+
+</section>
+
+<!-- ====================================================== -->
+<!-- SCREEN 2 — VENDOR PROFILE                              -->
+<!-- ====================================================== -->
+<section id="tab-vendor" class="tab-panel hidden">
+
+  <!-- Breadcrumb -->
+  <div class="text-xs text-zinc-500 mb-4 mono">
+    <span class="hover:text-zinc-300 cursor-pointer">radar</span>
+    <span class="mx-1">/</span>
+    <span class="hover:text-zinc-300 cursor-pointer">vendors</span>
+    <span class="mx-1">/</span>
+    <span class="text-zinc-100">leidos</span>
+  </div>
+
+  <!-- Vendor header -->
+  <div class="card p-6 mb-4">
+    <div class="flex items-start justify-between">
+      <div>
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-semibold tracking-tight">Leidos, Inc.</h1>
+          <span class="text-xs text-zinc-500 mono border border-[#1f1f23] rounded-md px-2 py-0.5">resolved · 14 aliases</span>
+        </div>
+        <div class="mt-1 text-sm text-zinc-500 mono">UEI JDYNCXXXXXXX · DUNS 123456789 · Reston, VA · Large</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="px-3 h-9 card text-sm text-zinc-400">Compare</button>
+        <button class="px-3 h-9 card text-sm text-zinc-400">Export</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-5 gap-6 mt-6">
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Lifetime obligated</div>
+        <div class="mono text-2xl font-semibold mt-1">$48.2<span class="text-zinc-500 text-lg">B</span></div>
+        <div class="text-xs text-zinc-500 mt-0.5">FY2015–present</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Active awards</div>
+        <div class="mono text-2xl font-semibold mt-1">312</div>
+        <div class="text-xs text-zinc-500 mt-0.5">across 47 agencies</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">DHS recompete exposure</div>
+        <div class="mono text-2xl font-semibold mt-1 text-amber-400">$1.14<span class="text-zinc-500 text-lg">B</span></div>
+        <div class="text-xs text-zinc-500 mt-0.5">9 candidates · next 24mo</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Top agencies</div>
+        <div class="text-sm font-medium mt-1">DoD · DHS · HHS</div>
+        <div class="text-xs text-zinc-500 mt-0.5">by 5yr obligations</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Top NAICS</div>
+        <div class="text-sm font-medium mono mt-1">541512 · 541511 · 541330</div>
+        <div class="text-xs text-zinc-500 mt-0.5">Computer systems / custom prog / eng</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4">
+    <!-- Award history chart -->
+    <div class="card p-5 col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="text-sm font-medium">Award history by fiscal year</div>
+          <div class="text-xs text-zinc-500 mt-0.5">Stacked by agency · obligations, USD billions</div>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-zinc-400">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-amber-500"></span>DoD</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-sky-500"></span>DHS</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-emerald-500"></span>HHS</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-zinc-500"></span>Other</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 700 260" class="w-full h-64">
+        <!-- grid -->
+        <g stroke="#1f1f23" stroke-width="1">
+          <line x1="40" y1="20" x2="680" y2="20"/>
+          <line x1="40" y1="80" x2="680" y2="80"/>
+          <line x1="40" y1="140" x2="680" y2="140"/>
+          <line x1="40" y1="200" x2="680" y2="200"/>
+        </g>
+        <g font-family="JetBrains Mono" font-size="10" fill="#52525b">
+          <text x="10" y="24">$8B</text>
+          <text x="10" y="84">$6B</text>
+          <text x="10" y="144">$4B</text>
+          <text x="10" y="204">$2B</text>
+        </g>
+        <!-- bars: FY20, FY21, FY22, FY23, FY24, FY25 -->
+        <g>
+          <!-- FY20 -->
+          <rect x="80"  y="140" width="60" height="60" fill="#f59e0b"/>
+          <rect x="80"  y="100" width="60" height="40" fill="#0ea5e9"/>
+          <rect x="80"  y="80"  width="60" height="20" fill="#10b981"/>
+          <rect x="80"  y="70"  width="60" height="10" fill="#52525b"/>
+          <!-- FY21 -->
+          <rect x="180" y="130" width="60" height="70" fill="#f59e0b"/>
+          <rect x="180" y="90"  width="60" height="40" fill="#0ea5e9"/>
+          <rect x="180" y="70"  width="60" height="20" fill="#10b981"/>
+          <rect x="180" y="55"  width="60" height="15" fill="#52525b"/>
+          <!-- FY22 -->
+          <rect x="280" y="115" width="60" height="85" fill="#f59e0b"/>
+          <rect x="280" y="75"  width="60" height="40" fill="#0ea5e9"/>
+          <rect x="280" y="55"  width="60" height="20" fill="#10b981"/>
+          <rect x="280" y="42"  width="60" height="13" fill="#52525b"/>
+          <!-- FY23 -->
+          <rect x="380" y="95"  width="60" height="105" fill="#f59e0b"/>
+          <rect x="380" y="55"  width="60" height="40" fill="#0ea5e9"/>
+          <rect x="380" y="35"  width="60" height="20" fill="#10b981"/>
+          <rect x="380" y="22"  width="60" height="13" fill="#52525b"/>
+          <!-- FY24 -->
+          <rect x="480" y="80"  width="60" height="120" fill="#f59e0b"/>
+          <rect x="480" y="35"  width="60" height="45" fill="#0ea5e9"/>
+          <rect x="480" y="15"  width="60" height="20" fill="#10b981"/>
+          <rect x="480" y="5"   width="60" height="10" fill="#52525b"/>
+          <!-- FY25 (partial) -->
+          <rect x="580" y="120" width="60" height="80" fill="#f59e0b" opacity="0.6"/>
+          <rect x="580" y="90"  width="60" height="30" fill="#0ea5e9" opacity="0.6"/>
+          <rect x="580" y="75"  width="60" height="15" fill="#10b981" opacity="0.6"/>
+        </g>
+        <g font-family="JetBrains Mono" font-size="10" fill="#a1a1aa" text-anchor="middle">
+          <text x="110" y="225">FY20</text>
+          <text x="210" y="225">FY21</text>
+          <text x="310" y="225">FY22</text>
+          <text x="410" y="225">FY23</text>
+          <text x="510" y="225">FY24</text>
+          <text x="610" y="225">FY25*</text>
+        </g>
+        <text x="610" y="248" font-family="JetBrains Mono" font-size="9" fill="#52525b" text-anchor="middle">* YTD</text>
+      </svg>
+    </div>
+
+    <!-- Competes with -->
+    <div class="card p-5">
+      <div class="text-sm font-medium mb-1">Competes with</div>
+      <div class="text-xs text-zinc-500 mb-4">Vendors sharing (agency, NAICS) cells over 5yr</div>
+      <div class="space-y-3">
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Booz Allen Hamilton</span>
+            <span class="mono text-zinc-400">184 shared cells</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:92%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>SAIC</span>
+            <span class="mono text-zinc-400">157</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:78%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>CACI Inc.</span>
+            <span class="mono text-zinc-400">141</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:70%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>General Dynamics IT</span>
+            <span class="mono text-zinc-400">128</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:64%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Peraton</span>
+            <span class="mono text-zinc-400">112</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:56%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>ManTech</span>
+            <span class="mono text-zinc-400">89</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:44%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active awards -->
+  <div class="card mt-4 overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+      <div class="text-sm font-medium">Active awards · DHS filter</div>
+      <div class="text-xs text-zinc-500">9 shown · $1.14B</div>
+    </div>
+    <table class="w-full text-sm row-hover">
+      <thead class="text-left text-zinc-500 text-xs uppercase tracking-wider">
+        <tr class="border-b border-[#1f1f23]">
+          <th class="px-4 py-2.5 font-medium">Contract</th>
+          <th class="px-4 py-2.5 font-medium">Sub-agency</th>
+          <th class="px-4 py-2.5 font-medium">POP end</th>
+          <th class="px-4 py-2.5 font-medium text-right">Value</th>
+          <th class="px-4 py-2.5 font-medium text-right">Recompete</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[#141417]">
+        <tr><td class="px-4 py-3"><div class="font-medium">EAGLE III FC2</div><div class="mono text-xs text-zinc-500">HSHQDC-16-D-E2048</div></td><td class="px-4 py-3 text-zinc-300">CBP</td><td class="px-4 py-3 mono text-zinc-300">2026-09-30</td><td class="px-4 py-3 mono text-right">$412.7M</td><td class="px-4 py-3 text-right"><span class="score-pill s-hi">87</span></td></tr>
+        <tr><td class="px-4 py-3"><div class="font-medium">DHS S&amp;T Data Analytics Support</div><div class="mono text-xs text-zinc-500">70RSAT-22-F-00031</div></td><td class="px-4 py-3 text-zinc-300">S&amp;T</td><td class="px-4 py-3 mono text-zinc-300">2027-02-14</td><td class="px-4 py-3 mono text-right">$186.3M</td><td class="px-4 py-3 text-right"><span class="score-pill s-mid">62</span></td></tr>
+        <tr><td class="px-4 py-3"><div class="font-medium">ICE Investigative Case Mgmt</div><div class="mono text-xs text-zinc-500">HSCEMS-20-F-00058</div></td><td class="px-4 py-3 text-zinc-300">ICE</td><td class="px-4 py-3 mono text-zinc-300">2026-12-01</td><td class="px-4 py-3 mono text-right">$148.9M</td><td class="px-4 py-3 text-right"><span class="score-pill s-hi">83</span></td></tr>
+        <tr><td class="px-4 py-3"><div class="font-medium">CBP Targeting Systems O&amp;M</div><div class="mono text-xs text-zinc-500">70B02C-18-F-00201</div></td><td class="px-4 py-3 text-zinc-300">CBP</td><td class="px-4 py-3 mono text-zinc-300">2026-06-15</td><td class="px-4 py-3 mono text-right">$121.0M</td><td class="px-4 py-3 text-right"><span class="score-pill s-hi">79</span></td></tr>
+      </tbody>
+    </table>
+    <div class="px-4 py-3 text-xs text-zinc-500 border-t border-[#1f1f23]">Showing 4 of 9</div>
+  </div>
+
+</section>
+
+<!-- ====================================================== -->
+<!-- SCREEN 3 — AGENCY PROFILE                              -->
+<!-- ====================================================== -->
+<section id="tab-agency" class="tab-panel hidden">
+
+  <div class="text-xs text-zinc-500 mb-4 mono">
+    <span class="hover:text-zinc-300 cursor-pointer">radar</span>
+    <span class="mx-1">/</span>
+    <span class="hover:text-zinc-300 cursor-pointer">agencies</span>
+    <span class="mx-1">/</span>
+    <span class="text-zinc-100">department of homeland security</span>
+  </div>
+
+  <!-- Agency header -->
+  <div class="card p-6 mb-4">
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl font-semibold tracking-tight">Department of Homeland Security</h1>
+      <span class="text-xs text-zinc-500 mono border border-[#1f1f23] rounded-md px-2 py-0.5">toptier · 7 sub-agencies</span>
+    </div>
+    <div class="mt-1 text-sm text-zinc-500">Cabinet-level · established 2003 · 260,000 employees</div>
+
+    <div class="grid grid-cols-5 gap-6 mt-6">
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">5yr obligated</div>
+        <div class="mono text-2xl font-semibold mt-1">$89.4<span class="text-zinc-500 text-lg">B</span></div>
+        <div class="text-xs text-emerald-400 mt-0.5">↑ 6.2% CAGR</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Unique vendors</div>
+        <div class="mono text-2xl font-semibold mt-1">8,412</div>
+        <div class="text-xs text-zinc-500 mt-0.5">with ≥1 award in 5yr</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">HHI (541512)</div>
+        <div class="mono text-2xl font-semibold mt-1">412</div>
+        <div class="text-xs text-emerald-400 mt-0.5">competitive · low concentration</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Top NAICS</div>
+        <div class="text-sm font-medium mono mt-1">541512 · 541330 · 541519</div>
+        <div class="text-xs text-zinc-500 mt-0.5">by 5yr obligations</div>
+      </div>
+      <div>
+        <div class="text-xs text-zinc-500 uppercase tracking-wider">Recompete exposure</div>
+        <div class="mono text-2xl font-semibold mt-1 text-amber-400">$4.82<span class="text-zinc-500 text-lg">B</span></div>
+        <div class="text-xs text-zinc-500 mt-0.5">47 candidates · next 12mo</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4">
+    <!-- Recompete pipeline histogram -->
+    <div class="card p-5 col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <div class="text-sm font-medium">Recompete pipeline · next 36 months</div>
+          <div class="text-xs text-zinc-500 mt-0.5">Candidates by POP-end quarter · NAICS 541511/541512 · bar height = $M at stake</div>
+        </div>
+        <div class="text-xs text-zinc-500 mono">peak: Q3 2026 · $1.84B</div>
+      </div>
+      <svg viewBox="0 0 700 220" class="w-full h-56">
+        <g stroke="#1f1f23" stroke-width="1">
+          <line x1="30" y1="20" x2="680" y2="20"/>
+          <line x1="30" y1="70" x2="680" y2="70"/>
+          <line x1="30" y1="120" x2="680" y2="120"/>
+          <line x1="30" y1="170" x2="680" y2="170"/>
+        </g>
+        <g font-family="JetBrains Mono" font-size="10" fill="#52525b">
+          <text x="2" y="24">$2B</text>
+          <text x="2" y="74">$1.5B</text>
+          <text x="2" y="124">$1B</text>
+          <text x="2" y="174">$500M</text>
+        </g>
+        <g>
+          <rect x="50"  y="135" width="46" height="35"  fill="#52525b"/>
+          <rect x="110" y="115" width="46" height="55"  fill="#71717a"/>
+          <rect x="170" y="95"  width="46" height="75"  fill="#f59e0b" opacity="0.6"/>
+          <rect x="230" y="55"  width="46" height="115" fill="#f59e0b"/>
+          <rect x="290" y="25"  width="46" height="145" fill="#f59e0b"/>
+          <rect x="350" y="35"  width="46" height="135" fill="#f59e0b"/>
+          <rect x="410" y="80"  width="46" height="90"  fill="#f59e0b" opacity="0.7"/>
+          <rect x="470" y="100" width="46" height="70"  fill="#71717a"/>
+          <rect x="530" y="120" width="46" height="50"  fill="#71717a"/>
+          <rect x="590" y="140" width="46" height="30"  fill="#52525b"/>
+          <rect x="650" y="150" width="30" height="20"  fill="#52525b"/>
+        </g>
+        <g font-family="JetBrains Mono" font-size="10" fill="#a1a1aa" text-anchor="middle">
+          <text x="73"  y="190">Q2·26</text>
+          <text x="133" y="190">Q3·26</text>
+          <text x="193" y="190">Q4·26</text>
+          <text x="253" y="190">Q1·27</text>
+          <text x="313" y="190">Q2·27</text>
+          <text x="373" y="190">Q3·27</text>
+          <text x="433" y="190">Q4·27</text>
+          <text x="493" y="190">Q1·28</text>
+          <text x="553" y="190">Q2·28</text>
+          <text x="613" y="190">Q3·28</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Vendor concentration -->
+    <div class="card p-5">
+      <div class="text-sm font-medium mb-1">Top vendors · 541512</div>
+      <div class="text-xs text-zinc-500 mb-4">Share of 5yr obligations at DHS</div>
+      <div class="space-y-3">
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Leidos</span>
+            <span class="mono text-zinc-400">12.4%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:62%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Booz Allen Hamilton</span>
+            <span class="mono text-zinc-400">9.8%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:49%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>General Dynamics IT</span>
+            <span class="mono text-zinc-400">8.2%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:41%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>CACI Inc.</span>
+            <span class="mono text-zinc-400">6.9%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:35%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Accenture Federal</span>
+            <span class="mono text-zinc-400">5.7%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:28%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>SAIC</span>
+            <span class="mono text-zinc-400">5.1%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:26%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span>Peraton</span>
+            <span class="mono text-zinc-400">4.3%</span>
+          </div>
+          <div class="h-1.5 bar-accent rounded" style="width:22%"></div>
+        </div>
+        <div>
+          <div class="flex items-center justify-between text-sm mb-1 text-zinc-500">
+            <span>Other (412 vendors)</span>
+            <span class="mono">47.6%</span>
+          </div>
+          <div class="h-1.5 bar rounded" style="width:95%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub-agency breakdown -->
+  <div class="card mt-4 overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+      <div class="text-sm font-medium">Sub-agency breakdown</div>
+      <div class="text-xs text-zinc-500">Obligations · 541511+541512 · FY2020–FY2025</div>
+    </div>
+    <table class="w-full text-sm row-hover">
+      <thead class="text-left text-zinc-500 text-xs uppercase tracking-wider">
+        <tr class="border-b border-[#1f1f23]">
+          <th class="px-4 py-2.5 font-medium">Sub-agency</th>
+          <th class="px-4 py-2.5 font-medium text-right">5yr obligated</th>
+          <th class="px-4 py-2.5 font-medium text-right">Vendors</th>
+          <th class="px-4 py-2.5 font-medium text-right">HHI</th>
+          <th class="px-4 py-2.5 font-medium text-right">Recompete candidates</th>
+          <th class="px-4 py-2.5 font-medium text-right">$ at stake (12mo)</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[#141417]">
+        <tr><td class="px-4 py-3">CBP</td><td class="px-4 py-3 mono text-right">$22.1B</td><td class="px-4 py-3 mono text-right">1,204</td><td class="px-4 py-3 mono text-right">487</td><td class="px-4 py-3 mono text-right">12</td><td class="px-4 py-3 mono text-right text-amber-400">$1.42B</td></tr>
+        <tr><td class="px-4 py-3">ICE</td><td class="px-4 py-3 mono text-right">$14.6B</td><td class="px-4 py-3 mono text-right">892</td><td class="px-4 py-3 mono text-right">615</td><td class="px-4 py-3 mono text-right">8</td><td class="px-4 py-3 mono text-right text-amber-400">$912M</td></tr>
+        <tr><td class="px-4 py-3">TSA</td><td class="px-4 py-3 mono text-right">$11.8B</td><td class="px-4 py-3 mono text-right">743</td><td class="px-4 py-3 mono text-right">528</td><td class="px-4 py-3 mono text-right">6</td><td class="px-4 py-3 mono text-right">$684M</td></tr>
+        <tr><td class="px-4 py-3">USCIS</td><td class="px-4 py-3 mono text-right">$9.2B</td><td class="px-4 py-3 mono text-right">612</td><td class="px-4 py-3 mono text-right">702</td><td class="px-4 py-3 mono text-right">5</td><td class="px-4 py-3 mono text-right">$558M</td></tr>
+        <tr><td class="px-4 py-3">FEMA</td><td class="px-4 py-3 mono text-right">$8.9B</td><td class="px-4 py-3 mono text-right">1,087</td><td class="px-4 py-3 mono text-right">348</td><td class="px-4 py-3 mono text-right">7</td><td class="px-4 py-3 mono text-right text-amber-400">$612M</td></tr>
+        <tr><td class="px-4 py-3">CISA</td><td class="px-4 py-3 mono text-right">$6.4B</td><td class="px-4 py-3 mono text-right">521</td><td class="px-4 py-3 mono text-right">812</td><td class="px-4 py-3 mono text-right">4</td><td class="px-4 py-3 mono text-right">$298M</td></tr>
+        <tr><td class="px-4 py-3">USCG</td><td class="px-4 py-3 mono text-right">$5.8B</td><td class="px-4 py-3 mono text-right">478</td><td class="px-4 py-3 mono text-right">604</td><td class="px-4 py-3 mono text-right">3</td><td class="px-4 py-3 mono text-right">$214M</td></tr>
+        <tr><td class="px-4 py-3">DHS HQ / S&amp;T</td><td class="px-4 py-3 mono text-right">$10.6B</td><td class="px-4 py-3 mono text-right">895</td><td class="px-4 py-3 mono text-right">391</td><td class="px-4 py-3 mono text-right">2</td><td class="px-4 py-3 mono text-right">$108M</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+<!-- Footer -->
+<footer class="mt-8 pb-10 text-xs text-zinc-500 flex items-center justify-between">
+  <div>Data: USASpending.gov prime award transactions · FY2020–FY2025 · obligated $</div>
+  <div class="mono">figures illustrative · not validated against source</div>
+</footer>
+
+</main>
+
+<script>
+  const tabs = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.tab-panel');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.tab;
+      tabs.forEach(b => {
+        b.classList.toggle('tab-active', b.dataset.tab === target);
+        b.classList.toggle('tab-idle', b.dataset.tab !== target);
+      });
+      panels.forEach(p => p.classList.toggle('hidden', p.id !== 'tab-' + target));
+    });
+  });
+</script>
+
+</body>
+</html>

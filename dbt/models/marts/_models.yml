@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: mart_awards
+    description: >
+      Award-grain rollup of USASpending transaction data. One row per
+      `award_unique_key`. Total obligated is the sum across all mods; the
+      classification and agency fields take the most recent non-null value.
+    columns:
+      - name: award_unique_key
+        description: Stable award identifier.
+        tests:
+          - unique
+          - not_null
+      - name: total_obligated
+        description: Sum of federal action obligations across all mods.
+        tests:
+          - not_null
+      - name: pop_current_end_date
+        description: Most recent period-of-performance end date — drives recompete timing.
