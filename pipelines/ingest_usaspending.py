@@ -183,7 +183,12 @@ def normalize(csv_path: Path) -> pl.DataFrame:
     for c in DATE_COLS:
         if c in df.columns:
             df = df.with_columns(
-                pl.col(c).cast(pl.String).str.to_date(strict=False).alias(c)
+                pl.col(c)
+                .cast(pl.String)
+                .str.strip_chars()
+                .replace("", None)
+                .str.to_date(format="%Y-%m-%d", strict=False)
+                .alias(c)
             )
     return df
 
