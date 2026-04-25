@@ -7,12 +7,12 @@ const tabs: { label: string; href: string; match: (p: string) => boolean }[] = [
   { label: "Radar", href: "/", match: (p) => p === "/" },
   {
     label: "Vendor",
-    href: "/vendors/leidos",
+    href: "/vendors/VV9KH3L99VE3",
     match: (p) => p.startsWith("/vendors"),
   },
   {
     label: "Agency",
-    href: "/agencies/dhs",
+    href: "/agencies/70",
     match: (p) => p.startsWith("/agencies"),
   },
 ];

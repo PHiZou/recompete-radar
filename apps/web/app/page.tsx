@@ -24,6 +24,7 @@ async function fetchRecompetes(): Promise<RecompeteCandidate[]> {
       title: r.title,
       subAgency: r.sub_agency,
       incumbent: r.incumbent,
+      incumbentUei: r.incumbent_uei ?? null,
       popEnd: r.pop_end,
       monthsToPopEnd: r.months_to_pop_end,
       valueMillions: r.value_millions,
@@ -127,7 +128,18 @@ export default async function RadarPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-zinc-300">{r.subAgency}</td>
-                <td className="px-4 py-3">{r.incumbent}</td>
+                <td className="px-4 py-3">
+                  {r.incumbentUei ? (
+                    <a
+                      href={`/vendors/${r.incumbentUei}`}
+                      className="hover:text-amber-400 hover:underline"
+                    >
+                      {r.incumbent}
+                    </a>
+                  ) : (
+                    r.incumbent
+                  )}
+                </td>
                 <td className="px-4 py-3 mono text-zinc-300">
                   {r.popEnd}{" "}
                   <span className="text-zinc-500 text-xs">

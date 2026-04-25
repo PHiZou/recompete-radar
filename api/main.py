@@ -83,6 +83,7 @@ class RecompeteCandidate(BaseModel):
     title: str
     sub_agency: str
     incumbent: str
+    incumbent_uei: str | None
     pop_end: str
     months_to_pop_end: int
     value_millions: float
@@ -109,49 +110,51 @@ def health() -> Health:
 
 @app.get("/recompetes", response_model=list[RecompeteCandidate], tags=["radar"])
 def list_recompetes(
-    limit: int = 20,
+    min_score: int = 0,
+    max_months: int = 36,
+    limit: int = 100,
 ) -> list[RecompeteCandidate]:
-    """
-    List recompete candidates sourced from dev_marts.mart_awards.
-    Returns up to `limit` rows ordered by soonest POP end date.
-    """
-    from datetime import date
+    """List scored recompete candidates from dev_marts.mart_recompete_candidates.
 
+    The mart already filters to the active POP-end window (-3 to +36 months);
+    `max_months` narrows further on read.
+    """
     eng = get_engine()
     if eng is None:
         return []
 
     sql = text("""
         SELECT
-            COALESCE(piid, award_unique_key)                                        AS piid,
-            COALESCE(naics_code, '')                                                AS naics,
-            COALESCE(naics_description, psc_description, piid, award_unique_key)    AS title,
-            COALESCE(awarding_sub_agency_name, awarding_agency_name, '')            AS sub_agency,
-            COALESCE(recipient_name, '')                                            AS incumbent,
+            COALESCE(piid, award_unique_key)                                  AS piid,
+            COALESCE(naics_code, '')                                          AS naics,
+            COALESCE(naics_description, piid, award_unique_key)               AS title,
+            COALESCE(awarding_sub_agency_name, awarding_agency_name, '')      AS sub_agency,
+            COALESCE(recipient_name, 'UNKNOWN')                               AS incumbent,
+            recipient_uei                                                     AS incumbent_uei,
             pop_current_end_date,
+            months_to_pop_end,
             COALESCE(
                 base_and_all_options_value,
                 base_and_exercised_options_value,
                 total_obligated,
                 0
-            ) AS value_dollars
-        FROM dev_marts.mart_awards
-        WHERE pop_current_end_date IS NOT NULL
-        ORDER BY pop_current_end_date ASC
+            )::float                                                          AS value_dollars,
+            recompete_score,
+            incumbent_strength
+        FROM dev_marts.mart_recompete_candidates
+        WHERE recompete_score >= :min_score
+          AND months_to_pop_end <= :max_months
+        ORDER BY recompete_score DESC, total_obligated DESC NULLS LAST
         LIMIT :lim
     """)
 
     rows: list[RecompeteCandidate] = []
-    today = date.today()
     with eng.connect() as conn:
-        for row in conn.execute(sql, {"lim": limit}).mappings():
+        for row in conn.execute(
+            sql, {"min_score": min_score, "max_months": max_months, "lim": limit}
+        ).mappings():
             pop_end = row["pop_current_end_date"]
-            pop_end_str = pop_end.isoformat() if pop_end else "N/A"
-            months = (
-                (pop_end.year - today.year) * 12 + (pop_end.month - today.month)
-                if pop_end else 0
-            )
-            value_m = round(float(row["value_dollars"] or 0) / 1_000_000, 1)
+            value_m = round(float(row["value_dollars"] or 0) / 1_000_000, 2)
             rows.append(
                 RecompeteCandidate(
                     piid=str(row["piid"] or ""),
@@ -159,33 +162,152 @@ def list_recompetes(
                     title=str(row["title"] or ""),
                     sub_agency=str(row["sub_agency"] or ""),
                     incumbent=str(row["incumbent"] or ""),
-                    pop_end=pop_end_str,
-                    months_to_pop_end=months,
+                    incumbent_uei=row["incumbent_uei"],
+                    pop_end=pop_end.isoformat() if pop_end else "N/A",
+                    months_to_pop_end=int(row["months_to_pop_end"] or 0),
                     value_millions=value_m,
-                    recompete_score=50,
-                    incumbent_strength=50,
+                    recompete_score=int(row["recompete_score"] or 0),
+                    incumbent_strength=int(row["incumbent_strength"] or 0),
                 )
             )
     return rows
 
 
-@app.get("/vendors/{vendor_id}", tags=["vendor"])
-def get_vendor(vendor_id: str) -> dict[str, Any]:
+class VendorAward(BaseModel):
+    piid: str
+    sub_agency: str
+    pop_end: str
+    value_millions: float
+    recompete_score: int
+
+
+class VendorProfile(BaseModel):
+    uei: str
+    name: str
+    lifetime_obligated_millions: float
+    award_count: int
+    active_award_count: int
+    sub_agency_count: int
+    naics_count: int
+    top_naics_code: str
+    top_naics_description: str
+    top_sub_agency_name: str
+    active_awards: list[VendorAward]
+
+
+@app.get("/vendors/{vendor_id}", response_model=VendorProfile, tags=["vendor"])
+def get_vendor(vendor_id: str) -> VendorProfile:
     eng = get_engine()
     if eng is None:
-        return {"detail": "DB not configured — UI renders from mock-data.ts"}
-    raise HTTPException(
-        status_code=501,
-        detail="marts.mart_vendors not yet built — see Weekend 3",
+        raise HTTPException(503, "DB not configured")
+
+    with eng.connect() as conn:
+        v = conn.execute(text("""
+            SELECT * FROM dev_marts.mart_vendors WHERE vendor_uei = :uei
+        """), {"uei": vendor_id}).mappings().one_or_none()
+        if not v:
+            raise HTTPException(404, f"vendor {vendor_id} not found")
+
+        awards = conn.execute(text("""
+            SELECT
+                COALESCE(piid, award_unique_key) AS piid,
+                COALESCE(awarding_sub_agency_name, '') AS sub_agency,
+                pop_current_end_date,
+                COALESCE(total_obligated, 0)::float AS value_dollars,
+                recompete_score
+            FROM dev_marts.mart_recompete_candidates
+            WHERE recipient_uei = :uei
+            ORDER BY recompete_score DESC, total_obligated DESC NULLS LAST
+            LIMIT 25
+        """), {"uei": vendor_id}).mappings().all()
+
+    return VendorProfile(
+        uei=v["vendor_uei"],
+        name=v["vendor_name"] or "",
+        lifetime_obligated_millions=round(float(v["lifetime_obligated"] or 0) / 1_000_000, 2),
+        award_count=int(v["award_count"] or 0),
+        active_award_count=int(v["active_award_count"] or 0),
+        sub_agency_count=int(v["sub_agency_count"] or 0),
+        naics_count=int(v["naics_count"] or 0),
+        top_naics_code=str(v["top_naics_code"] or ""),
+        top_naics_description=str(v["top_naics_description"] or ""),
+        top_sub_agency_name=str(v["top_sub_agency_name"] or ""),
+        active_awards=[
+            VendorAward(
+                piid=str(a["piid"] or ""),
+                sub_agency=str(a["sub_agency"] or ""),
+                pop_end=a["pop_current_end_date"].isoformat() if a["pop_current_end_date"] else "N/A",
+                value_millions=round(float(a["value_dollars"] or 0) / 1_000_000, 2),
+                recompete_score=int(a["recompete_score"] or 0),
+            )
+            for a in awards
+        ],
     )
 
 
-@app.get("/agencies/{agency_id}", tags=["agency"])
-def get_agency(agency_id: str) -> dict[str, Any]:
+class AgencyTopVendor(BaseModel):
+    uei: str
+    name: str
+    obligated_millions: float
+    share_pct: float
+
+
+class AgencyProfile(BaseModel):
+    id: str
+    name: str
+    parent_name: str
+    level: str
+    total_obligated_millions: float
+    award_count: int
+    unique_vendors: int
+    naics_count: int
+    recompete_candidates: int
+    recompete_exposure_millions: float
+    top_vendors: list[AgencyTopVendor]
+
+
+@app.get("/agencies/{agency_id}", response_model=AgencyProfile, tags=["agency"])
+def get_agency(agency_id: str) -> AgencyProfile:
     eng = get_engine()
     if eng is None:
-        return {"detail": "DB not configured — UI renders from mock-data.ts"}
-    raise HTTPException(
-        status_code=501,
-        detail="marts.mart_agency_summary not yet built — see Weekend 3",
+        raise HTTPException(503, "DB not configured")
+
+    with eng.connect() as conn:
+        a = conn.execute(text("""
+            SELECT * FROM dev_marts.mart_agency_summary WHERE agency_id = :id
+        """), {"id": agency_id}).mappings().one_or_none()
+        if not a:
+            raise HTTPException(404, f"agency {agency_id} not found")
+
+        # Top vendors: filter by sub-agency if 'sub', else by top-tier agency
+        col = "awarding_sub_agency_code" if a["agency_level"] == "sub" else "awarding_agency_code"
+        vendors = conn.execute(text(f"""
+            SELECT recipient_uei, MAX(recipient_name) AS name,
+                   SUM(total_obligated) AS obligated
+            FROM dev_marts.mart_awards
+            WHERE {col} = :id AND recipient_uei IS NOT NULL
+            GROUP BY 1 ORDER BY 3 DESC NULLS LAST LIMIT 8
+        """), {"id": agency_id}).mappings().all()
+
+    total = float(a["total_obligated"] or 0)
+    return AgencyProfile(
+        id=a["agency_id"],
+        name=str(a["agency_name"] or ""),
+        parent_name=str(a["parent_agency_name"] or ""),
+        level=str(a["agency_level"]),
+        total_obligated_millions=round(total / 1_000_000, 2),
+        award_count=int(a["award_count"] or 0),
+        unique_vendors=int(a["unique_vendors"] or 0),
+        naics_count=int(a["naics_count"] or 0),
+        recompete_candidates=int(a["recompete_candidates"] or 0),
+        recompete_exposure_millions=round(float(a["recompete_exposure"] or 0) / 1_000_000, 2),
+        top_vendors=[
+            AgencyTopVendor(
+                uei=str(v["recipient_uei"]),
+                name=str(v["name"] or ""),
+                obligated_millions=round(float(v["obligated"] or 0) / 1_000_000, 2),
+                share_pct=round(100 * float(v["obligated"] or 0) / total, 2) if total else 0,
+            )
+            for v in vendors
+        ],
     )

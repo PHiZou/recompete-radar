@@ -11,6 +11,7 @@ export type RecompeteCandidate = {
   title: string;
   subAgency: string;
   incumbent: string;
+  incumbentUei?: string | null;
   popEnd: string;
   monthsToPopEnd: number;
   valueMillions: number;
