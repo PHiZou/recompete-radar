@@ -17,6 +17,14 @@ export type RecompeteCandidate = {
   valueMillions: number;
   recompeteScore: number;
   incumbentStrength: number;
+  breakdown?: {
+    popWindowPts: number;
+    definitivePts: number;
+    aboveMedianPts: number;
+    lifetimePts: number;
+    breadthPts: number;
+    recencyPts: number;
+  };
 };
 
 export const recompeteCandidates: RecompeteCandidate[] = [

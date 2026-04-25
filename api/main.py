@@ -77,6 +77,15 @@ class Health(BaseModel):
     version: str
 
 
+class ScoreBreakdown(BaseModel):
+    pop_window_pts: int
+    definitive_pts: int
+    above_median_pts: int
+    lifetime_pts: int
+    breadth_pts: int
+    recency_pts: int
+
+
 class RecompeteCandidate(BaseModel):
     piid: str
     naics: str
@@ -89,6 +98,7 @@ class RecompeteCandidate(BaseModel):
     value_millions: float
     recompete_score: int
     incumbent_strength: int
+    breakdown: ScoreBreakdown
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +150,13 @@ def list_recompetes(
                 0
             )::float                                                          AS value_dollars,
             recompete_score,
-            incumbent_strength
+            incumbent_strength,
+            rs_pop_window_pts,
+            rs_definitive_pts,
+            rs_above_median_pts,
+            is_lifetime_pts,
+            is_breadth_pts,
+            is_recency_pts
         FROM dev_marts.mart_recompete_candidates
         WHERE recompete_score >= :min_score
           AND months_to_pop_end <= :max_months
@@ -168,6 +184,14 @@ def list_recompetes(
                     value_millions=value_m,
                     recompete_score=int(row["recompete_score"] or 0),
                     incumbent_strength=int(row["incumbent_strength"] or 0),
+                    breakdown=ScoreBreakdown(
+                        pop_window_pts=int(row["rs_pop_window_pts"] or 0),
+                        definitive_pts=int(row["rs_definitive_pts"] or 0),
+                        above_median_pts=int(row["rs_above_median_pts"] or 0),
+                        lifetime_pts=int(row["is_lifetime_pts"] or 0),
+                        breadth_pts=int(row["is_breadth_pts"] or 0),
+                        recency_pts=int(row["is_recency_pts"] or 0),
+                    ),
                 )
             )
     return rows

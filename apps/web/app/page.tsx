@@ -25,6 +25,16 @@ async function fetchRecompetes(): Promise<RecompeteCandidate[]> {
       subAgency: r.sub_agency,
       incumbent: r.incumbent,
       incumbentUei: r.incumbent_uei ?? null,
+      breakdown: r.breakdown
+        ? {
+            popWindowPts: r.breakdown.pop_window_pts,
+            definitivePts: r.breakdown.definitive_pts,
+            aboveMedianPts: r.breakdown.above_median_pts,
+            lifetimePts: r.breakdown.lifetime_pts,
+            breadthPts: r.breakdown.breadth_pts,
+            recencyPts: r.breakdown.recency_pts,
+          }
+        : undefined,
       popEnd: r.pop_end,
       monthsToPopEnd: r.months_to_pop_end,
       valueMillions: r.value_millions,
@@ -180,47 +190,79 @@ export default async function RadarPage() {
         </div>
       </div>
 
-      {/* Score explainer */}
-      <div className="mt-5 card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="text-xs text-zinc-500 uppercase tracking-wider">
-              Drawer preview · row click
+      {/* Score explainer — driven by the top live candidate */}
+      {recompeteCandidates[0]?.breakdown && (() => {
+        const top = recompeteCandidates[0];
+        const b = top.breakdown!;
+        const rows: { label: string; delta: number }[] = [
+          {
+            label: `POP ends in ${top.monthsToPopEnd} months`,
+            delta: b.popWindowPts,
+          },
+          {
+            label: "Contract type is definitive (vs. IDV/order)",
+            delta: b.definitivePts,
+          },
+          {
+            label: `Value above (sub-agency, NAICS) median`,
+            delta: b.aboveMedianPts,
+          },
+          {
+            label: "Incumbent: log-scaled lifetime obligations in slice",
+            delta: b.lifetimePts,
+          },
+          {
+            label: "Incumbent: breadth (distinct awards in slice)",
+            delta: b.breadthPts,
+          },
+          {
+            label: "Incumbent: recency of last action",
+            delta: b.recencyPts,
+          },
+        ];
+        return (
+          <div className="mt-5 card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                  Top candidate · score breakdown
+                </div>
+                <div className="text-base font-medium mt-0.5">
+                  Why recompete score is{" "}
+                  <span className="mono text-amber-400">
+                    {top.recompeteScore}
+                  </span>{" "}
+                  — {top.incumbent} · {top.subAgency}
+                </div>
+              </div>
+              <span className="text-xs text-zinc-500 mono">
+                every score is decomposed — no black box
+              </span>
             </div>
-            <div className="text-base font-medium mt-0.5">
-              Why recompete score is{" "}
-              <span className="mono text-amber-400">94</span> — FEMA Mission
-              Support Services
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              {rows.map((r) => (
+                <ScoreRow
+                  key={r.label}
+                  label={r.label}
+                  delta={r.delta > 0 ? `+${r.delta}` : `${r.delta}`}
+                  muted={r.delta === 0}
+                />
+              ))}
+            </div>
+            <div className="divider my-4" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-500">
+                Recompete · {b.popWindowPts + b.definitivePts + b.aboveMedianPts}
+                {"  "}·{"  "}
+                Incumbent · {b.lifetimePts + b.breadthPts + b.recencyPts}
+              </span>
+              <span className="mono font-semibold text-amber-400 text-lg">
+                {top.recompeteScore} / {top.incumbentStrength}
+              </span>
             </div>
           </div>
-          <span className="text-xs text-zinc-500 mono">
-            every score is decomposed — no black box
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-          <ScoreRow label="POP ends within 12 months" delta="+30" />
-          <ScoreRow
-            label="Contract type is definitive (single-award BPA call)"
-            delta="+15"
-          />
-          <ScoreRow
-            label="FEMA historically recompetes 541512 (72% over 10yr)"
-            delta="+20"
-          />
-          <ScoreRow label="Value > FEMA median for NAICS ($42M)" delta="+15" />
-          <ScoreRow label="No POP-extending mods in last 12mo" delta="+15" />
-          <ScoreRow
-            label="Set-aside status changed (SB → unrestricted)"
-            delta="−1"
-            muted
-          />
-        </div>
-        <div className="divider my-4" />
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-500">Total · capped at 100</span>
-          <span className="mono font-semibold text-amber-400 text-lg">94</span>
-        </div>
-      </div>
+        );
+      })()}
     </section>
   );
 }
