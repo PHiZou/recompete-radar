@@ -24,7 +24,9 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-load_dotenv()
+# Load .env from repo root so this works whether run from pipelines/ or root
+_repo_root = Path(__file__).parent.parent
+load_dotenv(_repo_root / ".env")
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS raw;
@@ -126,7 +128,7 @@ def load_file(engine: Engine, fy: int, path: Path) -> int:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--in-dir", default="./data/raw/award_transactions")
+    p.add_argument("--in-dir", default=str(_repo_root / "data" / "raw" / "award_transactions"))
     p.add_argument("--fy", type=int, default=None, help="Load only this FY")
     args = p.parse_args()
 

@@ -88,7 +88,12 @@ def poll_until_ready(file_name: str) -> str:
 
 
 def download_and_extract_contracts(url: str, work_dir: Path) -> list[Path]:
-    """Stream-download the zip, extract Contracts_PrimeTransactions*.csv files."""
+    """Stream-download the zip, extract Contracts_*.csv files.
+
+    USASpending's /download/awards/ endpoint names the file
+    Contracts_PrimeAwardSummaries_*.csv (not PrimeTransactions), so we
+    accept any CSV whose name starts with "Contracts_".
+    """
     work_dir.mkdir(parents=True, exist_ok=True)
     with requests.get(url, stream=True, timeout=600) as r:
         r.raise_for_status()
@@ -101,8 +106,10 @@ def download_and_extract_contracts(url: str, work_dir: Path) -> list[Path]:
         buf.seek(0)
         extracted: list[Path] = []
         with zipfile.ZipFile(buf) as zf:
-            for name in zf.namelist():
-                if "Contracts_PrimeTransactions" in name and name.endswith(".csv"):
+            all_names = zf.namelist()
+            print(f"  zip contains: {', '.join(all_names)}")
+            for name in all_names:
+                if name.startswith("Contracts_") and name.endswith(".csv"):
                     target = work_dir / Path(name).name
                     with zf.open(name) as src, open(target, "wb") as dst:
                         dst.write(src.read())
@@ -231,7 +238,9 @@ def main() -> int:
     p.add_argument("--naics", nargs="+", default=["541511", "541512"])
     p.add_argument("--fy-start", type=int, default=2020)
     p.add_argument("--fy-end", type=int, default=2025)
-    p.add_argument("--out-dir", default="./data/raw/award_transactions")
+    # Default resolves to <repo-root>/data/raw/award_transactions regardless of cwd
+    _repo_root = Path(__file__).parent.parent
+    p.add_argument("--out-dir", default=str(_repo_root / "data" / "raw" / "award_transactions"))
     p.add_argument("--force", action="store_true")
     args = p.parse_args()
 
