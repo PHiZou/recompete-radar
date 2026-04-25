@@ -1,103 +1,213 @@
 import ScorePill, { scoreTone } from "@/components/score-pill";
 import {
   recompeteCandidates as mockCandidates,
-  radarSummary,
+  radarSummary as mockSummary,
   type RecompeteCandidate,
 } from "@/lib/mock-data";
 
 const fmtM = (m: number) =>
   m >= 1000 ? `$${(m / 1000).toFixed(2)}B` : `$${m.toFixed(1)}M`;
 
-async function fetchRecompetes(): Promise<RecompeteCandidate[]> {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+type ApiSubAgency = { code: string; name: string; candidate_count: number };
+type ApiSummary = {
+  candidates: number;
+  dollars_at_stake_millions: number;
+  top_incumbent: {
+    name: string;
+    uei: string | null;
+    obligated_millions: number;
+    award_count: number;
+  } | null;
+  sub_agency_filter: string | null;
+};
+
+async function fetchJSON<T>(path: string): Promise<T | null> {
   try {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-    const res = await fetch(`${base}/recompetes?limit=20`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const data: unknown = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((r: any) => ({
-      piid: r.piid,
-      naics: r.naics,
-      title: r.title,
-      subAgency: r.sub_agency,
-      incumbent: r.incumbent,
-      incumbentUei: r.incumbent_uei ?? null,
-      breakdown: r.breakdown
-        ? {
-            popWindowPts: r.breakdown.pop_window_pts,
-            definitivePts: r.breakdown.definitive_pts,
-            aboveMedianPts: r.breakdown.above_median_pts,
-            lifetimePts: r.breakdown.lifetime_pts,
-            breadthPts: r.breakdown.breadth_pts,
-            recencyPts: r.breakdown.recency_pts,
-          }
-        : undefined,
-      popEnd: r.pop_end,
-      monthsToPopEnd: r.months_to_pop_end,
-      valueMillions: r.value_millions,
-      recompeteScore: r.recompete_score,
-      incumbentStrength: r.incumbent_strength,
-    }));
+    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch {
-    return [];
+    return null;
   }
 }
 
-export default async function RadarPage() {
-  const liveRows = await fetchRecompetes();
-  const recompeteCandidates =
-    liveRows.length > 0 ? liveRows : mockCandidates;
+async function fetchRecompetes(qs: string): Promise<RecompeteCandidate[]> {
+  const data = await fetchJSON<unknown[]>(`/recompetes?${qs}`);
+  if (!Array.isArray(data) || data.length === 0) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return data.map((r: any) => ({
+    piid: r.piid,
+    naics: r.naics,
+    title: r.title,
+    subAgency: r.sub_agency,
+    incumbent: r.incumbent,
+    incumbentUei: r.incumbent_uei ?? null,
+    breakdown: r.breakdown
+      ? {
+          popWindowPts: r.breakdown.pop_window_pts,
+          definitivePts: r.breakdown.definitive_pts,
+          aboveMedianPts: r.breakdown.above_median_pts,
+          lifetimePts: r.breakdown.lifetime_pts,
+          breadthPts: r.breakdown.breadth_pts,
+          recencyPts: r.breakdown.recency_pts,
+        }
+      : undefined,
+    popEnd: r.pop_end,
+    monthsToPopEnd: r.months_to_pop_end,
+    valueMillions: r.value_millions,
+    recompeteScore: r.recompete_score,
+    incumbentStrength: r.incumbent_strength,
+  }));
+}
+
+export default async function RadarPage({
+  searchParams,
+}: {
+  searchParams: { subAgency?: string; maxMonths?: string; minScore?: string };
+}) {
+  const subAgency = searchParams.subAgency ?? "";
+  const maxMonths = searchParams.maxMonths ?? "36";
+  const minScore = searchParams.minScore ?? "0";
+
+  const params = new URLSearchParams();
+  if (subAgency) params.set("sub_agency_code", subAgency);
+  params.set("max_months", maxMonths);
+  params.set("min_score", minScore);
+  params.set("limit", "100");
+  const qs = params.toString();
+
+  const [liveRows, liveSummary, subAgencies] = await Promise.all([
+    fetchRecompetes(qs),
+    fetchJSON<ApiSummary>(`/summary?${qs}`),
+    fetchJSON<ApiSubAgency[]>(`/sub_agencies`),
+  ]);
+
+  const isLive = liveRows.length > 0;
+  const recompeteCandidates = isLive ? liveRows : mockCandidates;
+
+  // KPI strip values — live when we have them, else mock
+  const kpiCandidates = liveSummary?.candidates ?? mockSummary.candidates;
+  const kpiAtStakeM =
+    liveSummary?.dollars_at_stake_millions ??
+    mockSummary.dollarsAtStakeBillions * 1000;
+  const kpiTopIncumbent = liveSummary?.top_incumbent ?? null;
+  const activeSubAgencyCount = (subAgencies ?? []).length;
+
+  const subAgencyName =
+    (subAgencies ?? []).find((s) => s.code === subAgency)?.name ?? null;
+
   return (
     <section>
-      {/* Filter row */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <FilterChip label="Agency" value="Department of Homeland Security" expandable />
-        <FilterChip label="NAICS" value="541511, 541512" mono expandable />
-        <FilterChip label="POP ends within" value="12 months" expandable />
-        <FilterChip label="Min score" value="60" mono />
-        <div className="ml-auto flex items-center gap-2">
-          <button className="px-3 h-9 card text-sm text-zinc-400 hover:text-zinc-100">
-            Export CSV
-          </button>
-          <button className="px-3 h-9 rounded-md bg-amber-500 text-zinc-950 text-sm font-medium hover:bg-amber-400">
-            Save view
-          </button>
-        </div>
-      </div>
+      {/* Filter row — real GET form */}
+      <form
+        method="GET"
+        action="/"
+        className="flex items-center gap-3 mb-5 flex-wrap"
+      >
+        <FilterSelect
+          name="subAgency"
+          label="Sub-agency"
+          value={subAgency}
+          options={[
+            { value: "", label: "All DHS sub-agencies" },
+            ...((subAgencies ?? []).map((s) => ({
+              value: s.code,
+              label: `${s.name} (${s.candidate_count})`,
+            }))),
+          ]}
+        />
+        <FilterSelect
+          name="maxMonths"
+          label="POP ends within"
+          value={maxMonths}
+          options={[
+            { value: "6", label: "6 months" },
+            { value: "12", label: "12 months" },
+            { value: "24", label: "24 months" },
+            { value: "36", label: "36 months" },
+          ]}
+        />
+        <FilterSelect
+          name="minScore"
+          label="Min score"
+          value={minScore}
+          mono
+          options={[
+            { value: "0", label: "0" },
+            { value: "30", label: "30" },
+            { value: "50", label: "50" },
+            { value: "60", label: "60" },
+          ]}
+        />
+        <button
+          type="submit"
+          className="px-3 h-9 rounded-md bg-amber-500 text-zinc-950 text-sm font-medium hover:bg-amber-400"
+        >
+          Apply
+        </button>
+        {(subAgency || maxMonths !== "36" || minScore !== "0") && (
+          <a
+            href="/"
+            className="px-3 h-9 inline-flex items-center text-sm text-zinc-500 hover:text-zinc-300"
+          >
+            Reset
+          </a>
+        )}
+      </form>
 
       {/* Summary strip */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         <KpiCard
           label="Candidates"
-          value={`${radarSummary.candidates}`}
-          note="↑ 12 vs prior 12mo"
+          value={`${kpiCandidates}`}
+          note={
+            subAgencyName
+              ? `filter: ${subAgencyName}`
+              : `${activeSubAgencyCount} sub-agencies represented`
+          }
         />
         <KpiCard
           label="$ at stake"
-          value={`$${radarSummary.dollarsAtStakeBillions.toFixed(2)}`}
+          value={`$${(kpiAtStakeM / 1000).toFixed(2)}`}
           suffix="B"
-          note="obligated, base + options"
+          note="obligated, active POP-end window"
         />
         <KpiCard
           label="Top incumbent"
           rawValue={
-            <span className="text-xl font-semibold">
-              {radarSummary.topIncumbent.name}
-            </span>
+            kpiTopIncumbent ? (
+              kpiTopIncumbent.uei ? (
+                <a
+                  href={`/vendors/${kpiTopIncumbent.uei}`}
+                  className="text-base font-semibold hover:text-amber-400"
+                >
+                  {kpiTopIncumbent.name}
+                </a>
+              ) : (
+                <span className="text-base font-semibold">
+                  {kpiTopIncumbent.name}
+                </span>
+              )
+            ) : (
+              <span className="text-zinc-500 text-sm">—</span>
+            )
           }
-          note={`$${radarSummary.topIncumbent.dollarsBillions}B across ${radarSummary.topIncumbent.awards} awards`}
+          note={
+            kpiTopIncumbent
+              ? `${fmtM(kpiTopIncumbent.obligated_millions)} across ${kpiTopIncumbent.award_count} candidates`
+              : "no incumbent data"
+          }
         />
         <KpiCard
-          label="Market HHI"
-          value={`${radarSummary.marketHhi}`}
-          noteEl={
-            <span className="text-emerald-400">
-              low concentration · competitive
+          label="Slice"
+          rawValue={
+            <span className="text-base font-semibold mono">
+              DHS · 541511/541512
             </span>
           }
+          note="MVP scope · widens in Phase 2"
         />
       </div>
 
@@ -109,9 +219,10 @@ export default async function RadarPage() {
             <span className="text-zinc-100">recompete score</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-zinc-500">
-            <span>{radarSummary.candidates} rows</span>
-            <span>·</span>
-            <span>updated 2026-04-21</span>
+            <span>{recompeteCandidates.length} rows</span>
+            {!isLive && (
+              <span className="text-amber-500">· mock data (API offline)</span>
+            )}
           </div>
         </div>
         <table className="w-full text-sm row-hover">
@@ -181,13 +292,6 @@ export default async function RadarPage() {
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-[#1f1f23] text-xs text-zinc-500">
-          <span>
-            Showing {recompeteCandidates.length} of {radarSummary.candidates} ·
-            click any row for score breakdown
-          </span>
-          <span className="mono">1 / 5 →</span>
-        </div>
       </div>
 
       {/* Score explainer — driven by the top live candidate */}
@@ -204,7 +308,7 @@ export default async function RadarPage() {
             delta: b.definitivePts,
           },
           {
-            label: `Value above (sub-agency, NAICS) median`,
+            label: "Value above (sub-agency, NAICS) median",
             delta: b.aboveMedianPts,
           },
           {
@@ -267,36 +371,40 @@ export default async function RadarPage() {
   );
 }
 
-function FilterChip({
+function FilterSelect({
+  name,
   label,
   value,
+  options,
   mono,
-  expandable,
 }: {
+  name: string;
   label: string;
   value: string;
+  options: { value: string; label: string }[];
   mono?: boolean;
-  expandable?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2 px-3 h-9 card text-sm">
+    <label className="flex items-center gap-2 px-3 h-9 card text-sm">
       <span className="text-zinc-500 text-xs uppercase tracking-wider">
         {label}
       </span>
-      <span className={`font-medium ${mono ? "mono" : ""}`}>{value}</span>
-      {expandable && (
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#71717a"
-          strokeWidth="2"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      )}
-    </div>
+      <select
+        name={name}
+        defaultValue={value}
+        className={`bg-transparent outline-none font-medium ${mono ? "mono" : ""}`}
+      >
+        {options.map((o) => (
+          <option
+            key={o.value}
+            value={o.value}
+            className="bg-[#0a0a0c] text-zinc-100"
+          >
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

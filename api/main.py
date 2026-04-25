@@ -118,8 +118,97 @@ def health() -> Health:
     return Health(status="ok", database=db_status, version="0.1.0")
 
 
+class TopIncumbent(BaseModel):
+    name: str
+    uei: str | None
+    obligated_millions: float
+    award_count: int
+
+
+class RadarSummary(BaseModel):
+    candidates: int
+    dollars_at_stake_millions: float
+    top_incumbent: TopIncumbent | None
+    sub_agency_filter: str | None
+
+
+class SubAgency(BaseModel):
+    code: str
+    name: str
+    candidate_count: int
+
+
+@app.get("/summary", response_model=RadarSummary, tags=["radar"])
+def radar_summary(
+    sub_agency_code: str | None = None,
+    min_score: int = 0,
+    max_months: int = 36,
+) -> RadarSummary:
+    eng = get_engine()
+    if eng is None:
+        raise HTTPException(503, "DB not configured")
+    where, params = _filter_clause(sub_agency_code, min_score, max_months)
+    with eng.connect() as conn:
+        agg = conn.execute(text(f"""
+            SELECT COUNT(*) AS candidates,
+                   COALESCE(SUM(total_obligated), 0)::float / 1e6 AS at_stake_m
+            FROM dev_marts.mart_recompete_candidates
+            WHERE {where}
+        """), params).mappings().one()
+        top = conn.execute(text(f"""
+            SELECT recipient_name AS name,
+                   recipient_uei AS uei,
+                   SUM(total_obligated)::float / 1e6 AS m,
+                   COUNT(*) AS n
+            FROM dev_marts.mart_recompete_candidates
+            WHERE {where} AND recipient_uei IS NOT NULL
+            GROUP BY 1, 2
+            ORDER BY 3 DESC NULLS LAST
+            LIMIT 1
+        """), params).mappings().one_or_none()
+    return RadarSummary(
+        candidates=int(agg["candidates"]),
+        dollars_at_stake_millions=round(float(agg["at_stake_m"]), 2),
+        top_incumbent=TopIncumbent(
+            name=str(top["name"]),
+            uei=str(top["uei"]) if top["uei"] else None,
+            obligated_millions=round(float(top["m"]), 2),
+            award_count=int(top["n"]),
+        ) if top else None,
+        sub_agency_filter=sub_agency_code,
+    )
+
+
+@app.get("/sub_agencies", response_model=list[SubAgency], tags=["radar"])
+def list_sub_agencies() -> list[SubAgency]:
+    """Sub-agencies that currently have at least one active recompete candidate."""
+    eng = get_engine()
+    if eng is None:
+        return []
+    with eng.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT awarding_sub_agency_code AS code,
+                   MAX(awarding_sub_agency_name) AS name,
+                   COUNT(*) AS n
+            FROM dev_marts.mart_recompete_candidates
+            WHERE awarding_sub_agency_code IS NOT NULL
+            GROUP BY 1 ORDER BY 3 DESC
+        """)).mappings().all()
+    return [SubAgency(code=r["code"], name=r["name"], candidate_count=int(r["n"])) for r in rows]
+
+
+def _filter_clause(sub_agency_code: str | None, min_score: int, max_months: int) -> tuple[str, dict]:
+    where = ["recompete_score >= :min_score", "months_to_pop_end <= :max_months"]
+    params: dict[str, object] = {"min_score": min_score, "max_months": max_months}
+    if sub_agency_code:
+        where.append("awarding_sub_agency_code = :sub")
+        params["sub"] = sub_agency_code
+    return " AND ".join(where), params
+
+
 @app.get("/recompetes", response_model=list[RecompeteCandidate], tags=["radar"])
 def list_recompetes(
+    sub_agency_code: str | None = None,
     min_score: int = 0,
     max_months: int = 36,
     limit: int = 100,
@@ -133,7 +222,9 @@ def list_recompetes(
     if eng is None:
         return []
 
-    sql = text("""
+    where, params = _filter_clause(sub_agency_code, min_score, max_months)
+    params["lim"] = limit
+    sql = text(f"""
         SELECT
             COALESCE(piid, award_unique_key)                                  AS piid,
             COALESCE(naics_code, '')                                          AS naics,
@@ -158,17 +249,14 @@ def list_recompetes(
             is_breadth_pts,
             is_recency_pts
         FROM dev_marts.mart_recompete_candidates
-        WHERE recompete_score >= :min_score
-          AND months_to_pop_end <= :max_months
+        WHERE {where}
         ORDER BY recompete_score DESC, total_obligated DESC NULLS LAST
         LIMIT :lim
     """)
 
     rows: list[RecompeteCandidate] = []
     with eng.connect() as conn:
-        for row in conn.execute(
-            sql, {"min_score": min_score, "max_months": max_months, "lim": limit}
-        ).mappings():
+        for row in conn.execute(sql, params).mappings():
             pop_end = row["pop_current_end_date"]
             value_m = round(float(row["value_dollars"] or 0) / 1_000_000, 2)
             rows.append(
