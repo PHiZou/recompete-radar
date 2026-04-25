@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Recompete Radar API",
+    title="Sunlight API",
     version="0.1.0",
     description="Read API for marts-layer contract intelligence.",
     lifespan=lifespan,

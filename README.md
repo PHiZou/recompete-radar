@@ -1,4 +1,4 @@
-# Recompete Radar
+# Sunlight
 
 An end-to-end data product that ingests U.S. federal contracting data, resolves messy vendor entities, and surfaces explainable scores for **recompete likelihood**, **incumbent strength**, and **market concentration** across agencies and NAICS codes.
 
@@ -100,7 +100,7 @@ npm run dev
 
 `(Agency, NAICS, PSC, Time)` is the market cell. Vendors hold share in each cell. Awards are the evidence. All analytical views project from this tuple.
 
-Core entities: `agency`, `vendor` (resolved), `vendor_alias`, `award`, `award_transaction`, `naics_code`, `psc_code`. See [plan](.) for the full model.
+Core entities: `agency`, `vendor` (resolved), `vendor_alias`, `award`, `award_transaction`, `naics_code`, `psc_code`.
 
 ---
 
@@ -119,12 +119,10 @@ Every score is transparent SQL with a per-component breakdown surfaced in the UI
 
 ## Phases
 
-- **Phase 0** — Foundation (this repo as of weekend 1)
-- **Phase 1** — MVP with scored radar + vendor + agency views (weekends 2–4)
+- **Phase 0** — Foundation (initial scaffold)
+- **Phase 1** — MVP with scored radar + vendor + agency views
 - **Phase 2** — SAM.gov opportunities, multi-agency, CI, demo video
 - **Phase 3** — Forecast scraping, vehicles, exports
-
-Full plan: [plan file](~/.claude/plans/act-as-a-senior-sunny-backus.md).
 
 ---
 

@@ -3,9 +3,9 @@ import TopNav from "@/components/top-nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Recompete Radar",
+  title: "Sunlight",
   description:
-    "Explainable intelligence on federal contracting recompetes, incumbents, and white space.",
+    "Explainable intelligence on federal contracting recompetes, incumbents, and market white space.",
 };
 
 export default function RootLayout({

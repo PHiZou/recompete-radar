@@ -39,7 +39,7 @@ export default function TopNav() {
               <circle cx="12" cy="12" r="3" fill="#0a0a0c" />
             </svg>
           </div>
-          <span className="font-semibold tracking-tight">Recompete Radar</span>
+          <span className="font-semibold tracking-tight">Sunlight</span>
           <span className="text-xs text-zinc-500 border border-[#1f1f23] rounded-md px-2 py-0.5 ml-1 mono">
             mvp · preview
           </span>

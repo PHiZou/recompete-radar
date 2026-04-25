@@ -1,7 +1,7 @@
 # Copy to ~/.dbt/profiles.yml and fill in with your Neon/Supabase details.
 # Or set env vars DBT_HOST, DBT_USER, etc. and leave this file as-is.
 
-recompete:
+sunlight:
   target: dev
   outputs:
     dev:
@@ -10,7 +10,7 @@ recompete:
       port: "{{ env_var('DBT_PORT', '5432') | as_number }}"
       user: "{{ env_var('DBT_USER', 'postgres') }}"
       password: "{{ env_var('DBT_PASSWORD', '') }}"
-      dbname: "{{ env_var('DBT_DBNAME', 'recompete') }}"
+      dbname: "{{ env_var('DBT_DBNAME', 'sunlight') }}"
       schema: dev
       threads: 4
       sslmode: "{{ env_var('DBT_SSLMODE', 'prefer') }}"

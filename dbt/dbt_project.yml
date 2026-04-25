@@ -1,8 +1,8 @@
-name: recompete
+name: sunlight
 version: "0.1.0"
 config-version: 2
 
-profile: recompete
+profile: sunlight
 
 model-paths: ["models"]
 seed-paths: ["seeds"]
@@ -16,7 +16,7 @@ clean-targets:
   - dbt_packages
 
 models:
-  recompete:
+  sunlight:
     staging:
       +schema: staging
       +materialized: view
@@ -28,7 +28,7 @@ models:
       +materialized: table
 
 seeds:
-  recompete:
+  sunlight:
     +schema: reference
 
 vars:
