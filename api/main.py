@@ -109,26 +109,64 @@ def health() -> Health:
 
 @app.get("/recompetes", response_model=list[RecompeteCandidate], tags=["radar"])
 def list_recompetes(
-    agency_code: str = "070",
-    naics: list[str] | None = None,
-    max_months: int = 24,
-    min_score: int = 60,
-    limit: int = 100,
+    limit: int = 20,
 ) -> list[RecompeteCandidate]:
     """
-    List recompete candidates for a slice.
-    Weekend-1: returns an empty list if DB is not connected.
-    Weekend-3: backed by `SELECT ... FROM marts.mart_recompete_candidates`.
+    List recompete candidates sourced from dev_marts.mart_awards.
+    Returns up to `limit` rows ordered by soonest POP end date.
     """
+    from datetime import date
+
     eng = get_engine()
     if eng is None:
         return []
-    # Placeholder query — the mart doesn't exist yet. The shape below is the
-    # target contract for Weekend 3.
-    raise HTTPException(
-        status_code=501,
-        detail="marts.mart_recompete_candidates not yet built — see Weekend 3",
-    )
+
+    sql = text("""
+        SELECT
+            COALESCE(piid, award_unique_key)                                        AS piid,
+            COALESCE(naics_code, '')                                                AS naics,
+            COALESCE(naics_description, psc_description, piid, award_unique_key)    AS title,
+            COALESCE(awarding_sub_agency_name, awarding_agency_name, '')            AS sub_agency,
+            COALESCE(recipient_name, '')                                            AS incumbent,
+            pop_current_end_date,
+            COALESCE(
+                base_and_all_options_value,
+                base_and_exercised_options_value,
+                total_obligated,
+                0
+            ) AS value_dollars
+        FROM dev_marts.mart_awards
+        WHERE pop_current_end_date IS NOT NULL
+        ORDER BY pop_current_end_date ASC
+        LIMIT :lim
+    """)
+
+    rows: list[RecompeteCandidate] = []
+    today = date.today()
+    with eng.connect() as conn:
+        for row in conn.execute(sql, {"lim": limit}).mappings():
+            pop_end = row["pop_current_end_date"]
+            pop_end_str = pop_end.isoformat() if pop_end else "N/A"
+            months = (
+                (pop_end.year - today.year) * 12 + (pop_end.month - today.month)
+                if pop_end else 0
+            )
+            value_m = round(float(row["value_dollars"] or 0) / 1_000_000, 1)
+            rows.append(
+                RecompeteCandidate(
+                    piid=str(row["piid"] or ""),
+                    naics=str(row["naics"] or ""),
+                    title=str(row["title"] or ""),
+                    sub_agency=str(row["sub_agency"] or ""),
+                    incumbent=str(row["incumbent"] or ""),
+                    pop_end=pop_end_str,
+                    months_to_pop_end=months,
+                    value_millions=value_m,
+                    recompete_score=50,
+                    incumbent_strength=50,
+                )
+            )
+    return rows
 
 
 @app.get("/vendors/{vendor_id}", tags=["vendor"])

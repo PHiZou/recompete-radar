@@ -1,10 +1,44 @@
 import ScorePill, { scoreTone } from "@/components/score-pill";
-import { recompeteCandidates, radarSummary } from "@/lib/mock-data";
+import {
+  recompeteCandidates as mockCandidates,
+  radarSummary,
+  type RecompeteCandidate,
+} from "@/lib/mock-data";
 
 const fmtM = (m: number) =>
   m >= 1000 ? `$${(m / 1000).toFixed(2)}B` : `$${m.toFixed(1)}M`;
 
-export default function RadarPage() {
+async function fetchRecompetes(): Promise<RecompeteCandidate[]> {
+  try {
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const res = await fetch(`${base}/recompetes?limit=20`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data: unknown = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.map((r: any) => ({
+      piid: r.piid,
+      naics: r.naics,
+      title: r.title,
+      subAgency: r.sub_agency,
+      incumbent: r.incumbent,
+      popEnd: r.pop_end,
+      monthsToPopEnd: r.months_to_pop_end,
+      valueMillions: r.value_millions,
+      recompeteScore: r.recompete_score,
+      incumbentStrength: r.incumbent_strength,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export default async function RadarPage() {
+  const liveRows = await fetchRecompetes();
+  const recompeteCandidates =
+    liveRows.length > 0 ? liveRows : mockCandidates;
   return (
     <section>
       {/* Filter row */}
