@@ -60,9 +60,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+_cors_origins = os.getenv(
+    "CORS_ORIGINS", "http://localhost:3000"
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[o.strip() for o in _cors_origins if o.strip()],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["GET"],
     allow_headers=["*"],
 )
