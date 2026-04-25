@@ -122,7 +122,14 @@ export default async function VendorPage({
             <tbody className="divide-y divide-[#141417]">
               {v.active_awards.map((a) => (
                 <tr key={a.piid}>
-                  <td className="px-4 py-3 mono">{a.piid}</td>
+                  <td className="px-4 py-3 mono">
+                    <a
+                      href={`/contracts/${encodeURIComponent(a.piid)}`}
+                      className="hover:text-amber-400 hover:underline"
+                    >
+                      {a.piid}
+                    </a>
+                  </td>
                   <td className="px-4 py-3 text-zinc-300">{a.sub_agency}</td>
                   <td className="px-4 py-3 mono text-zinc-300">{a.pop_end}</td>
                   <td className="px-4 py-3 mono text-right">

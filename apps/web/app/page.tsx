@@ -243,9 +243,20 @@ export default async function RadarPage({
             {recompeteCandidates.map((r) => (
               <tr key={r.piid} className="cursor-pointer">
                 <td className="px-4 py-3">
-                  <div className="font-medium">{r.title}</div>
+                  <a
+                    href={`/contracts/${encodeURIComponent(r.piid)}`}
+                    className="font-medium hover:text-amber-400 hover:underline"
+                  >
+                    {r.title}
+                  </a>
                   <div className="mono text-xs text-zinc-500">
-                    {r.piid} · {r.naics}
+                    <a
+                      href={`/contracts/${encodeURIComponent(r.piid)}`}
+                      className="hover:text-zinc-300"
+                    >
+                      {r.piid}
+                    </a>{" "}
+                    · {r.naics}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-zinc-300">{r.subAgency}</td>

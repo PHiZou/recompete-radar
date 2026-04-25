@@ -361,6 +361,141 @@ def get_vendor(vendor_id: str) -> VendorProfile:
     )
 
 
+class ContractModification(BaseModel):
+    action_date: str
+    modification_number: str
+    action_type: str
+    description: str
+    obligation_delta: float
+    cumulative_obligated: float
+    pop_end_as_of: str | None
+
+
+class ContractDetail(BaseModel):
+    piid: str
+    parent_piid: str | None
+    title: str
+    awarding_agency_name: str
+    awarding_sub_agency_name: str
+    awarding_office_name: str | None
+    naics_code: str
+    naics_description: str
+    psc_code: str | None
+    psc_description: str | None
+    contract_award_type: str | None
+    type_of_contract_pricing: str | None
+    type_of_set_aside: str | None
+    extent_competed: str | None
+    incumbent_name: str
+    incumbent_uei: str | None
+    pop_start_date: str | None
+    pop_current_end_date: str | None
+    months_to_pop_end: int | None
+    total_obligated_millions: float
+    base_and_all_options_millions: float | None
+    recompete_score: int | None
+    incumbent_strength: int | None
+    breakdown: ScoreBreakdown | None
+    modification_count: int
+    modifications: list[ContractModification]
+
+
+@app.get("/contracts/{piid:path}", response_model=ContractDetail, tags=["contract"])
+def get_contract(piid: str) -> ContractDetail:
+    eng = get_engine()
+    if eng is None:
+        raise HTTPException(503, "DB not configured")
+
+    with eng.connect() as conn:
+        # Header: prefer the candidates mart row (has scores); fall back to staging
+        cand = conn.execute(text("""
+            SELECT * FROM dev_marts.mart_recompete_candidates WHERE piid = :p
+        """), {"p": piid}).mappings().one_or_none()
+
+        first = conn.execute(text("""
+            SELECT * FROM dev_staging.stg_usaspending__award_transactions
+            WHERE piid = :p
+            ORDER BY action_date ASC, modification_number ASC
+            LIMIT 1
+        """), {"p": piid}).mappings().one_or_none()
+
+        if not first and not cand:
+            raise HTTPException(404, f"contract {piid} not found")
+
+        mods = conn.execute(text("""
+            SELECT
+                action_date,
+                COALESCE(modification_number, '') AS modification_number,
+                COALESCE(action_type_description, action_type, '') AS action_type,
+                COALESCE(transaction_description, '') AS description,
+                COALESCE(federal_action_obligation, 0)::float AS obligation_delta,
+                pop_current_end_date
+            FROM dev_staging.stg_usaspending__award_transactions
+            WHERE piid = :p
+            ORDER BY action_date ASC, modification_number ASC
+        """), {"p": piid}).mappings().all()
+
+    base = cand or first
+    cumulative = 0.0
+    mod_rows: list[ContractModification] = []
+    for m in mods:
+        cumulative += float(m["obligation_delta"] or 0)
+        mod_rows.append(ContractModification(
+            action_date=m["action_date"].isoformat() if m["action_date"] else "",
+            modification_number=str(m["modification_number"] or ""),
+            action_type=str(m["action_type"] or ""),
+            description=str(m["description"] or ""),
+            obligation_delta=round(float(m["obligation_delta"] or 0) / 1_000_000, 4),
+            cumulative_obligated=round(cumulative / 1_000_000, 4),
+            pop_end_as_of=m["pop_current_end_date"].isoformat() if m["pop_current_end_date"] else None,
+        ))
+
+    breakdown = None
+    if cand:
+        breakdown = ScoreBreakdown(
+            pop_window_pts=int(cand["rs_pop_window_pts"] or 0),
+            definitive_pts=int(cand["rs_definitive_pts"] or 0),
+            above_median_pts=int(cand["rs_above_median_pts"] or 0),
+            lifetime_pts=int(cand["is_lifetime_pts"] or 0),
+            breadth_pts=int(cand["is_breadth_pts"] or 0),
+            recency_pts=int(cand["is_recency_pts"] or 0),
+        )
+
+    pop_start = base.get("pop_start_date") if base else None
+    pop_end = (cand or first).get("pop_current_end_date") if (cand or first) else None
+    total_obl_dollars = float((cand and cand.get("total_obligated")) or sum(float(m["obligation_delta"] or 0) for m in mods))
+    base_all = (cand and cand.get("base_and_all_options_value")) or (first and first.get("base_and_all_options_value"))
+
+    return ContractDetail(
+        piid=piid,
+        parent_piid=(base.get("parent_piid") if base else None) or None,
+        title=str((base.get("naics_description") if base else "") or piid),
+        awarding_agency_name=str((base.get("awarding_agency_name") if base else "") or ""),
+        awarding_sub_agency_name=str((base.get("awarding_sub_agency_name") if base else "") or ""),
+        awarding_office_name=(first.get("awarding_office_name") if first else None),
+        naics_code=str((base.get("naics_code") if base else "") or ""),
+        naics_description=str((base.get("naics_description") if base else "") or ""),
+        psc_code=(first.get("psc_code") if first else None),
+        psc_description=(first.get("psc_description") if first else None),
+        contract_award_type=(base.get("contract_award_type") if base else None),
+        type_of_contract_pricing=(first.get("type_of_contract_pricing") if first else None),
+        type_of_set_aside=(base.get("type_of_set_aside") if base else None),
+        extent_competed=(first.get("extent_competed") if first else None),
+        incumbent_name=str((base.get("recipient_name") if base else "") or "UNKNOWN"),
+        incumbent_uei=(base.get("recipient_uei") if base else None),
+        pop_start_date=pop_start.isoformat() if pop_start else None,
+        pop_current_end_date=pop_end.isoformat() if pop_end else None,
+        months_to_pop_end=(int(cand["months_to_pop_end"]) if cand and cand["months_to_pop_end"] is not None else None),
+        total_obligated_millions=round(total_obl_dollars / 1_000_000, 4),
+        base_and_all_options_millions=(round(float(base_all) / 1_000_000, 4) if base_all else None),
+        recompete_score=(int(cand["recompete_score"]) if cand else None),
+        incumbent_strength=(int(cand["incumbent_strength"]) if cand else None),
+        breakdown=breakdown,
+        modification_count=len(mod_rows),
+        modifications=mod_rows,
+    )
+
+
 class AgencyTopVendor(BaseModel):
     uei: str
     name: str
