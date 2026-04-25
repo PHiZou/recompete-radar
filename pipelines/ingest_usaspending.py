@@ -123,6 +123,13 @@ COLUMN_MAP: dict[str, str] = {
     "contract_award_unique_key": "award_unique_key",
     "award_id_piid": "piid",
     "parent_award_id_piid": "parent_piid",
+    # Current USASpending award-summary exports use these names.
+    "total_obligated_amount": "total_dollars_obligated",
+    "current_total_value_of_award": "base_and_exercised_options_value",
+    "potential_total_value_of_award": "base_and_all_options_value",
+    "award_latest_action_date": "action_date",
+    "award_type": "contract_award_type",
+    # Older / alternate names kept for compatibility.
     "federal_action_obligation": "federal_action_obligation",
     "total_dollars_obligated": "total_dollars_obligated",
     "base_and_exercised_options_value": "base_and_exercised_options_value",
@@ -180,6 +187,14 @@ def normalize(csv_path: Path) -> pl.DataFrame:
     )
     keep = [c for c in COLUMN_MAP if c in df.columns]
     df = df.select(keep).rename({c: COLUMN_MAP[c] for c in keep})
+
+    # The current USASpending PrimeAwardSummaries export does not include a
+    # per-action obligation column. For the MVP slice, treat total obligated
+    # amount as the best available obligation measure so downstream marts keep
+    # a stable contract.
+    if "federal_action_obligation" not in df.columns and "total_dollars_obligated" in df.columns:
+        df = df.with_columns(pl.col("total_dollars_obligated").alias("federal_action_obligation"))
+
     for c in DATE_COLS:
         if c in df.columns:
             df = df.with_columns(
