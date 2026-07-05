@@ -92,8 +92,16 @@ def ensure_schema(engine: Engine) -> None:
 
 
 def discover_parquet(in_dir: Path, fy_filter: int | None) -> list[tuple[int, Path]]:
+    """Find every fy=YYYY partition under in_dir, at any depth.
+
+    Supports both the flat layout (in_dir/fy=YYYY/*.parquet) and the
+    per-agency layout (in_dir/<agency>/fy=YYYY/*.parquet) so multiple
+    agencies can be ingested into sibling folders and loaded together.
+    """
     found: list[tuple[int, Path]] = []
-    for fy_dir in sorted(in_dir.glob("fy=*")):
+    for fy_dir in sorted(in_dir.rglob("fy=*")):
+        if not fy_dir.is_dir():
+            continue
         try:
             fy = int(fy_dir.name.split("=", 1)[1])
         except ValueError:
@@ -105,15 +113,29 @@ def discover_parquet(in_dir: Path, fy_filter: int | None) -> list[tuple[int, Pat
     return found
 
 
-def load_file(engine: Engine, fy: int, path: Path) -> int:
+def agency_codes_in(files: list[tuple[int, Path]]) -> list[str]:
+    """Distinct awarding_agency_code values across the given parquet files."""
+    codes: set[str] = set()
+    for _fy, path in files:
+        col = pl.read_parquet(path, columns=["awarding_agency_code"])
+        codes.update(
+            c for c in col["awarding_agency_code"].drop_nulls().unique().to_list() if c
+        )
+    return sorted(codes)
+
+
+def load_file(engine: Engine, fy: int, path: Path, append_only: bool) -> int:
     df = pl.read_parquet(path)
     df = df.with_columns(pl.lit(fy).alias("fiscal_year"))
     pdf = df.to_pandas()
-    with engine.begin() as conn:
-        conn.execute(
-            text("DELETE FROM raw.award_transactions WHERE fiscal_year = :fy"),
-            {"fy": fy},
-        )
+    # In rebuild/replace mode the relevant rows are cleared once up front, so we
+    # never delete per-FY here (which would wipe other agencies sharing that FY).
+    if not append_only:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM raw.award_transactions WHERE fiscal_year = :fy"),
+                {"fy": fy},
+            )
     pdf.to_sql(
         "award_transactions",
         engine,
@@ -130,6 +152,19 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--in-dir", default=str(_repo_root / "data" / "raw" / "award_transactions"))
     p.add_argument("--fy", type=int, default=None, help="Load only this FY")
+    p.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="Truncate raw.award_transactions once, then load all discovered "
+        "files (correct for a full multi-agency reload).",
+    )
+    p.add_argument(
+        "--replace",
+        action="store_true",
+        help="Per-agency-safe refresh: delete only the awarding_agency_code(s) "
+        "present in the loaded files, then append. Agencies not in this run keep "
+        "their existing data (use for scheduled refreshes where a source may fail).",
+    )
     args = p.parse_args()
 
     dsn = os.getenv("DATABASE_URL")
@@ -150,11 +185,28 @@ def main() -> int:
         print(f"No parquet files found under {in_dir}" + (f" for FY{args.fy}" if args.fy else ""))
         return 0
 
+    append_only = args.rebuild or args.replace
+    if args.rebuild:
+        print("Rebuild mode: truncating raw.award_transactions first.")
+        with engine.begin() as conn:
+            conn.execute(text("TRUNCATE raw.award_transactions"))
+    elif args.replace:
+        codes = agency_codes_in(files)
+        print(f"Replace mode: clearing agencies {codes} before reload.")
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "DELETE FROM raw.award_transactions "
+                    "WHERE awarding_agency_code = ANY(:codes)"
+                ),
+                {"codes": codes},
+            )
+
     print(f"Loading {len(files)} file(s) into raw.award_transactions\n")
     total = 0
     for fy, path in files:
-        n = load_file(engine, fy, path)
-        print(f"  FY{fy}  {path.name}  {n:,} rows")
+        n = load_file(engine, fy, path, append_only)
+        print(f"  FY{fy}  {path.relative_to(in_dir)}  {n:,} rows")
         total += n
     print(f"\nDone. {total:,} total rows loaded.")
     return 0

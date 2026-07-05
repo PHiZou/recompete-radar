@@ -20,12 +20,10 @@ export default function RootLayout({
         <main className="max-w-[1400px] mx-auto px-6 py-6">{children}</main>
         <footer className="max-w-[1400px] mx-auto px-6 mt-8 pb-10 text-xs text-zinc-500 flex items-center justify-between">
           <div>
-            Data: USASpending.gov prime award transactions · FY2020–FY2025 ·
-            obligated $
+            Data: USASpending.gov prime awards · DHS · HHS · IT services ·
+            FY2021–FY2026 · obligated $
           </div>
-          <div className="mono">
-            figures illustrative · not validated against source
-          </div>
+          <div className="mono">derived from public federal data</div>
         </footer>
       </body>
     </html>

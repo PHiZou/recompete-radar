@@ -26,9 +26,13 @@ type AgencyProfile = {
 
 async function fetchAgency(id: string): Promise<AgencyProfile | null> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${base}/agencies/${id}`, { cache: "no-store" });
-  if (!res.ok) return null;
-  return (await res.json()) as AgencyProfile;
+  try {
+    const res = await fetch(`${base}/agencies/${id}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as AgencyProfile;
+  } catch {
+    return null;
+  }
 }
 
 export default async function AgencyPage({

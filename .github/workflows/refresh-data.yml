@@ -1,0 +1,65 @@
+name: Refresh data
+
+# Keeps the live dataset current: re-ingests the flagship-agency slice from
+# USASpending, loads it into Postgres (per-agency-safe), and rebuilds the dbt
+# marts the API serves. Runs weekly and on demand.
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Mondays 08:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipelines/requirements.txt
+          pip install "dbt-postgres>=1.9,<1.11"
+
+      - name: Fail fast if DATABASE_URL is missing
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set. Add it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - name: Configure dbt profile from DATABASE_URL
+        run: |
+          mkdir -p ~/.dbt
+          cp dbt/profiles.yml.example ~/.dbt/profiles.yml
+          python - <<'PY' >> "$GITHUB_ENV"
+          import os
+          from urllib.parse import urlparse
+          u = urlparse(os.environ["DATABASE_URL"])
+          print(f"DBT_HOST={u.hostname}")
+          print(f"DBT_PORT={u.port or 5432}")
+          print(f"DBT_USER={u.username}")
+          print(f"DBT_PASSWORD={u.password}")
+          print(f"DBT_DBNAME={(u.path or '/').lstrip('/')}")
+          print("DBT_SSLMODE=require")
+          PY
+
+      - name: Ingest + load (per-agency-safe)
+        run: PYTHON=python bash pipelines/refresh.sh
+
+      - name: Rebuild marts
+        working-directory: dbt
+        run: |
+          dbt deps
+          dbt run
+          dbt test

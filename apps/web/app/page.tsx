@@ -111,7 +111,7 @@ export default async function RadarPage({
           label="Sub-agency"
           value={subAgency}
           options={[
-            { value: "", label: "All DHS sub-agencies" },
+            { value: "", label: "All sub-agencies" },
             ...((subAgencies ?? []).map((s) => ({
               value: s.code,
               label: `${s.name} (${s.candidate_count})`,
@@ -201,13 +201,13 @@ export default async function RadarPage({
           }
         />
         <KpiCard
-          label="Slice"
+          label="Coverage"
           rawValue={
             <span className="text-base font-semibold mono">
-              DHS · 541511/541512
+              DHS · HHS
             </span>
           }
-          note="MVP scope · widens in Phase 2"
+          note="IT services · NAICS 541511/541512"
         />
       </div>
 
