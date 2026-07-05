@@ -62,11 +62,15 @@ const COLLAPSE_AFTER = 10;
 
 async function fetchContract(piid: string): Promise<ContractDetail | null> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${base}/contracts/${encodeURIComponent(piid)}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as ContractDetail;
+  try {
+    const res = await fetch(`${base}/contracts/${encodeURIComponent(piid)}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ContractDetail;
+  } catch {
+    return null;
+  }
 }
 
 export default async function ContractPage({

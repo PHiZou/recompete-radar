@@ -28,9 +28,13 @@ type VendorProfile = {
 
 async function fetchVendor(id: string): Promise<VendorProfile | null> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${base}/vendors/${id}`, { cache: "no-store" });
-  if (!res.ok) return null;
-  return (await res.json()) as VendorProfile;
+  try {
+    const res = await fetch(`${base}/vendors/${id}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as VendorProfile;
+  } catch {
+    return null;
+  }
 }
 
 export default async function VendorPage({

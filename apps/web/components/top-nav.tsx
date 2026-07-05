@@ -65,7 +65,7 @@ export default function TopNav() {
         </nav>
         <div className="flex items-center gap-3 text-sm text-zinc-400">
           <span className="kbd">⌘ K</span>
-          <span className="mono text-xs">v0.1 · FY2020–2025</span>
+          <span className="mono text-xs">v0.1 · FY2021–2026</span>
         </div>
       </div>
     </header>
