@@ -147,11 +147,12 @@ def radar_summary(
     sub_agency_code: str | None = None,
     min_score: int = 0,
     max_months: int = 36,
+    agency_code: str | None = None,
 ) -> RadarSummary:
     eng = get_engine()
     if eng is None:
         raise HTTPException(503, "DB not configured")
-    where, params = _filter_clause(sub_agency_code, min_score, max_months)
+    where, params = _filter_clause(sub_agency_code, min_score, max_months, agency_code)
     with eng.connect() as conn:
         agg = conn.execute(text(f"""
             SELECT COUNT(*) AS candidates,
@@ -201,9 +202,41 @@ def list_sub_agencies() -> list[SubAgency]:
     return [SubAgency(code=r["code"], name=r["name"], candidate_count=int(r["n"])) for r in rows]
 
 
-def _filter_clause(sub_agency_code: str | None, min_score: int, max_months: int) -> tuple[str, dict]:
+class AgencyOption(BaseModel):
+    code: str
+    name: str
+    candidate_count: int
+
+
+@app.get("/agencies", response_model=list[AgencyOption], tags=["radar"])
+def list_agencies() -> list[AgencyOption]:
+    """Top-tier agencies with active recompete candidates (radar agency filter)."""
+    eng = get_engine()
+    if eng is None:
+        return []
+    with eng.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT awarding_agency_code AS code,
+                   MAX(awarding_agency_name) AS name,
+                   COUNT(*) AS n
+            FROM dev_marts.mart_recompete_candidates
+            WHERE awarding_agency_code IS NOT NULL
+            GROUP BY 1 ORDER BY 3 DESC
+        """)).mappings().all()
+    return [AgencyOption(code=r["code"], name=r["name"], candidate_count=int(r["n"])) for r in rows]
+
+
+def _filter_clause(
+    sub_agency_code: str | None,
+    min_score: int,
+    max_months: int,
+    agency_code: str | None = None,
+) -> tuple[str, dict]:
     where = ["recompete_score >= :min_score", "months_to_pop_end <= :max_months"]
     params: dict[str, object] = {"min_score": min_score, "max_months": max_months}
+    if agency_code:
+        where.append("awarding_agency_code = :agency")
+        params["agency"] = agency_code
     if sub_agency_code:
         where.append("awarding_sub_agency_code = :sub")
         params["sub"] = sub_agency_code
@@ -216,6 +249,7 @@ def list_recompetes(
     min_score: int = 0,
     max_months: int = 36,
     limit: int = 100,
+    agency_code: str | None = None,
 ) -> list[RecompeteCandidate]:
     """List scored recompete candidates from dev_marts.mart_recompete_candidates.
 
@@ -226,7 +260,7 @@ def list_recompetes(
     if eng is None:
         return []
 
-    where, params = _filter_clause(sub_agency_code, min_score, max_months)
+    where, params = _filter_clause(sub_agency_code, min_score, max_months, agency_code)
     params["lim"] = limit
     sql = text(f"""
         SELECT
@@ -561,4 +595,88 @@ def get_agency(agency_id: str) -> AgencyProfile:
             )
             for v in vendors
         ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Data quality
+# ---------------------------------------------------------------------------
+class QualityTest(BaseModel):
+    test_name: str
+    model: str
+    status: str
+    failures: int
+
+
+class QualityMetric(BaseModel):
+    metric_group: str
+    metric: str
+    value: float
+    unit: str
+
+
+class QualityReport(BaseModel):
+    run_started_at: str | None
+    tests_total: int
+    tests_passed: int
+    tests_failed: int
+    freshness_days: float | None
+    tests: list[QualityTest]
+    metrics: list[QualityMetric]
+
+
+@app.get("/quality", response_model=QualityReport, tags=["meta"])
+def quality() -> QualityReport:
+    """Data-quality dashboard feed: latest dbt test batch + DQ metrics.
+
+    Reads dev_marts.dq_test_results (written by pipelines/dq_snapshot.py) and
+    dev_marts.mart_dq_metrics (a dbt model). Degrades to an empty report when
+    the DB or those relations are absent.
+    """
+    empty = QualityReport(
+        run_started_at=None, tests_total=0, tests_passed=0, tests_failed=0,
+        freshness_days=None, tests=[], metrics=[],
+    )
+    eng = get_engine()
+    if eng is None:
+        return empty
+    try:
+        with eng.connect() as conn:
+            tests = conn.execute(text("""
+                SELECT test_name, model, status, failures
+                FROM dev_marts.dq_test_results
+                WHERE run_started_at = (
+                    SELECT MAX(run_started_at) FROM dev_marts.dq_test_results
+                )
+                ORDER BY (status <> 'pass') DESC, model, test_name
+            """)).mappings().all()
+            run_started = conn.execute(text(
+                "SELECT MAX(run_started_at) AS r FROM dev_marts.dq_test_results"
+            )).scalar()
+            metrics = conn.execute(text("""
+                SELECT metric_group, metric, value, unit
+                FROM dev_marts.mart_dq_metrics
+                ORDER BY metric_group, metric
+            """)).mappings().all()
+    except Exception:
+        return empty
+
+    passed = sum(1 for t in tests if t["status"] == "pass")
+    freshness = next(
+        (float(m["value"]) for m in metrics if m["metric"] == "raw_days_stale"), None
+    )
+    return QualityReport(
+        run_started_at=run_started.isoformat() if run_started else None,
+        tests_total=len(tests),
+        tests_passed=passed,
+        tests_failed=len(tests) - passed,
+        freshness_days=round(freshness, 2) if freshness is not None else None,
+        tests=[QualityTest(
+            test_name=t["test_name"], model=t["model"] or "—",
+            status=t["status"], failures=int(t["failures"] or 0),
+        ) for t in tests],
+        metrics=[QualityMetric(
+            metric_group=m["metric_group"], metric=m["metric"],
+            value=float(m["value"]), unit=m["unit"],
+        ) for m in metrics],
     )

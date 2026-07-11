@@ -11,10 +11,11 @@ Splits the request by fiscal year so each download stays modest and idempotent.
 Usage:
     python ingest_usaspending.py \\
         --agency-name "Department of Homeland Security" \\
+        --agency-code 070 \\
         --naics 541511 541512 \\
         --fy-start 2020 --fy-end 2025
 
-Outputs: data/raw/award_transactions/fy=YYYY/part-0.parquet
+Outputs: data/raw/award_transactions/agency=<code>/fy=YYYY/part-0.parquet
 """
 
 from __future__ import annotations
@@ -208,19 +209,24 @@ def normalize(csv_path: Path) -> pl.DataFrame:
     return df
 
 
-def write_parquet(df: pl.DataFrame, out_root: Path, fy: int) -> Path:
-    target = out_root / f"fy={fy}" / "part-0.parquet"
+def write_parquet(df: pl.DataFrame, out_root: Path, agency_code: str, fy: int) -> Path:
+    target = out_root / f"agency={agency_code}" / f"fy={fy}" / "part-0.parquet"
     target.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(target, compression="zstd")
     return target
 
 
 def ingest_fy(
-    agency: str, naics: list[str], fy: int, out_root: Path, force: bool
+    agency: str,
+    agency_code: str,
+    naics: list[str],
+    fy: int,
+    out_root: Path,
+    force: bool,
 ) -> None:
-    fy_dir = out_root / f"fy={fy}"
+    fy_dir = out_root / f"agency={agency_code}" / f"fy={fy}"
     if fy_dir.exists() and any(fy_dir.iterdir()) and not force:
-        print(f"→ FY{fy}: exists at {fy_dir}, skip (--force to override)")
+        print(f"→ agency={agency_code} FY{fy}: exists at {fy_dir}, skip (--force to override)")
         return
 
     print(f"→ FY{fy}: requesting download…")
@@ -230,7 +236,7 @@ def ingest_fy(
     file_url = poll_until_ready(file_name)
     print(f"  ready")
 
-    work = out_root / "_tmp" / f"fy={fy}"
+    work = out_root / "_tmp" / f"agency={agency_code}" / f"fy={fy}"
     csvs = download_and_extract_contracts(file_url, work)
     if not csvs:
         print(f"  ! no Contracts_PrimeTransactions CSV in zip for FY{fy}", file=sys.stderr)
@@ -238,7 +244,7 @@ def ingest_fy(
 
     frames = [normalize(p) for p in csvs]
     df = pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else frames[0]
-    target = write_parquet(df, out_root, fy)
+    target = write_parquet(df, out_root, agency_code, fy)
     print(f"  wrote {target}  ({len(df):,} rows)")
 
     for p in csvs:
@@ -255,6 +261,12 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--agency-name", default="Department of Homeland Security")
+    p.add_argument(
+        "--agency-code",
+        default="070",
+        help="CGAC top-tier agency code — used as the raw partition label "
+        "(070=DHS, 036=VA). Keeps agencies' parquet caches independent.",
+    )
     p.add_argument("--naics", nargs="+", default=["541511", "541512"])
     p.add_argument("--fy-start", type=int, default=2020)
     p.add_argument("--fy-end", type=int, default=2025)
@@ -265,7 +277,7 @@ def main() -> int:
     args = p.parse_args()
 
     out_root = Path(args.out_dir).resolve()
-    print(f"Agency: {args.agency_name}")
+    print(f"Agency: {args.agency_name} ({args.agency_code})")
     print(f"NAICS:  {', '.join(args.naics)}")
     print(f"FY:     {args.fy_start}–{args.fy_end}")
     print(f"Out:    {out_root}\n")
@@ -273,7 +285,9 @@ def main() -> int:
     failures: list[int] = []
     for fy in range(args.fy_start, args.fy_end + 1):
         try:
-            ingest_fy(args.agency_name, args.naics, fy, out_root, args.force)
+            ingest_fy(
+                args.agency_name, args.agency_code, args.naics, fy, out_root, args.force
+            )
         except Exception as e:
             print(f"  ! FY{fy} failed: {e}", file=sys.stderr)
             failures.append(fy)

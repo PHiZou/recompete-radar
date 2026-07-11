@@ -15,6 +15,11 @@ const tabs: { label: string; href: string; match: (p: string) => boolean }[] = [
     href: "/agencies/70",
     match: (p) => p.startsWith("/agencies"),
   },
+  {
+    label: "Quality",
+    href: "/quality",
+    match: (p) => p.startsWith("/quality"),
+  },
 ];
 
 export default function TopNav() {

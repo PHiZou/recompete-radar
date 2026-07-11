@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dbt-tests:
+    name: dbt build + tests (ephemeral Postgres)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sunlight
+          POSTGRES_PASSWORD: sunlight
+          POSTGRES_DB: sunlight
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sunlight"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://sunlight:sunlight@localhost:5432/sunlight
+      DBT_HOST: localhost
+      DBT_PORT: "5432"
+      DBT_USER: sunlight
+      DBT_PASSWORD: sunlight
+      DBT_DBNAME: sunlight
+      DBT_SSLMODE: disable
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pipeline + dbt deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipelines/requirements.txt dbt-postgres
+
+      - name: Configure dbt profile (env-var driven)
+        run: cp dbt/profiles.yml.example dbt/profiles.yml
+
+      - name: Seed a tiny raw fixture
+        run: python ci/seed_fixture.py
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt build (runs models + all tests)
+        working-directory: dbt
+        run: dbt build
+
+      - name: Snapshot test outcomes (smoke-test dq_snapshot)
+        run: python pipelines/dq_snapshot.py
+
+  web-typecheck:
+    name: web typecheck + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint

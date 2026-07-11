@@ -18,3 +18,101 @@ models:
           - not_null
       - name: pop_current_end_date
         description: Most recent period-of-performance end date — drives recompete timing.
+
+  - name: mart_recompete_candidates
+    description: >
+      Scored recompete candidates — awards whose current POP-end falls in the
+      active window (−3 to +36 months). Two explainable 0–100 scores are built
+      from named component columns so the UI can show *why* each row scored.
+    columns:
+      - name: award_unique_key
+        description: Stable award identifier (candidate grain).
+        tests:
+          - unique
+          - not_null
+      - name: pop_current_end_date
+        description: Current period-of-performance end date — the "expiry" that drives alerting.
+        tests:
+          - not_null
+      - name: months_to_pop_end
+        description: Whole months from today to POP-end; bounded by the active-window filter.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -3
+              max_value: 37
+      - name: recompete_score
+        description: 0–100 sum of the recompete component points.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: incumbent_strength
+        description: 0–100 sum of the incumbent-strength component points.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: rs_pop_window_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 30 }
+      - name: rs_definitive_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 15 }
+      - name: rs_above_median_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 15 }
+      - name: is_lifetime_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 30 }
+      - name: is_breadth_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 15 }
+      - name: is_recency_pts
+        tests:
+          - dbt_utils.accepted_range: { min_value: 0, max_value: 20 }
+      - name: recipient_uei
+        description: Incumbent vendor UEI; every non-null value must resolve to a vendor.
+        tests:
+          - relationships:
+              to: ref('mart_vendors')
+              field: vendor_uei
+
+  - name: mart_vendors
+    description: >
+      One row per vendor (resolved by UEI). Lifetime/active award counts,
+      lifetime obligations, and top NAICS / sub-agency. Powers the vendor page.
+    columns:
+      - name: vendor_uei
+        description: Unique Entity Identifier — the vendor key.
+        tests:
+          - unique
+          - not_null
+      - name: lifetime_obligated
+        description: Sum of obligations across the vendor's awards in the slice.
+        tests:
+          - dbt_utils.not_null_proportion:
+              at_least: 0.95
+
+  - name: mart_agency_summary
+    description: >
+      One row per sub-agency plus a synthetic top-tier rollup keyed by
+      awarding_agency_code. Powers the agency profile page and the radar
+      agency filter.
+    columns:
+      - name: agency_id
+        description: Sub-agency code, or top-tier agency code for the rollup row.
+        tests:
+          - not_null
+      - name: agency_level
+        description: Whether the row is a sub-agency or a top-tier rollup.
+        tests:
+          - accepted_values:
+              values: ["top", "sub"]
+      - name: recompete_candidates
+        description: Count of active recompete candidates attributed to the agency.
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0

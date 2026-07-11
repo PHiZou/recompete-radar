@@ -1,0 +1,74 @@
+name: Scheduled ingest
+
+# Free hosted cron that runs the same chain the Dagster asset graph models:
+# ingest → load → dbt build → snapshot test outcomes → expiry alert.
+# Dagster provides the lineage/checks/local scheduling; this runs it in prod.
+
+on:
+  schedule:
+    - cron: "0 11 * * 1" # Mondays 11:00 UTC
+  workflow_dispatch: # allow manual runs
+
+concurrency:
+  group: sunlight-ingest
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DBT_HOST: ${{ secrets.DBT_HOST }}
+      DBT_PORT: ${{ secrets.DBT_PORT }}
+      DBT_USER: ${{ secrets.DBT_USER }}
+      DBT_PASSWORD: ${{ secrets.DBT_PASSWORD }}
+      DBT_DBNAME: ${{ secrets.DBT_DBNAME }}
+      DBT_SSLMODE: require
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+      # Alerting (optional — omit secrets to keep it a dry-run)
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+      ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipelines/requirements.txt dbt-postgres
+
+      - name: Configure dbt profile
+        run: cp dbt/profiles.yml.example dbt/profiles.yml
+
+      - name: Ingest (DHS + VA)
+        run: |
+          for spec in "Department of Homeland Security:070" "Department of Veterans Affairs:036"; do
+            name="${spec%:*}"; code="${spec##*:}"
+            python pipelines/ingest_usaspending.py \
+              --agency-name "$name" --agency-code "$code" \
+              --naics 541511 541512 --fy-start 2020 --fy-end 2025
+          done
+
+      - name: Load → Postgres
+        run: python pipelines/load_to_postgres.py
+
+      - name: dbt build (models + tests)
+        working-directory: dbt
+        run: dbt deps && dbt build
+
+      - name: Snapshot test outcomes
+        run: python pipelines/dq_snapshot.py
+
+      - name: Contract-expiry alert
+        # Sends if ALERT_EMAIL_TO + SENDGRID_API_KEY are set; otherwise dry-runs.
+        run: |
+          if [ -n "$ALERT_EMAIL_TO" ] && [ -n "$SENDGRID_API_KEY" ]; then
+            python pipelines/alerts.py
+          else
+            python pipelines/alerts.py --dry-run
+          fi

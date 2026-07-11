@@ -11,6 +11,7 @@ const fmtM = (m: number) =>
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type ApiSubAgency = { code: string; name: string; candidate_count: number };
+type ApiAgency = { code: string; name: string; candidate_count: number };
 type ApiSummary = {
   candidates: number;
   dollars_at_stake_millions: number;
@@ -65,23 +66,31 @@ async function fetchRecompetes(qs: string): Promise<RecompeteCandidate[]> {
 export default async function RadarPage({
   searchParams,
 }: {
-  searchParams: { subAgency?: string; maxMonths?: string; minScore?: string };
+  searchParams: {
+    agency?: string;
+    subAgency?: string;
+    maxMonths?: string;
+    minScore?: string;
+  };
 }) {
+  const agency = searchParams.agency ?? "";
   const subAgency = searchParams.subAgency ?? "";
   const maxMonths = searchParams.maxMonths ?? "36";
   const minScore = searchParams.minScore ?? "0";
 
   const params = new URLSearchParams();
+  if (agency) params.set("agency_code", agency);
   if (subAgency) params.set("sub_agency_code", subAgency);
   params.set("max_months", maxMonths);
   params.set("min_score", minScore);
   params.set("limit", "100");
   const qs = params.toString();
 
-  const [liveRows, liveSummary, subAgencies] = await Promise.all([
+  const [liveRows, liveSummary, subAgencies, agencies] = await Promise.all([
     fetchRecompetes(qs),
     fetchJSON<ApiSummary>(`/summary?${qs}`),
     fetchJSON<ApiSubAgency[]>(`/sub_agencies`),
+    fetchJSON<ApiAgency[]>(`/agencies`),
   ]);
 
   const isLive = liveRows.length > 0;
@@ -97,6 +106,13 @@ export default async function RadarPage({
 
   const subAgencyName =
     (subAgencies ?? []).find((s) => s.code === subAgency)?.name ?? null;
+  const agencyName =
+    (agencies ?? []).find((a) => a.code === agency)?.name ?? null;
+  const agencyLabel = agencyName
+    ? agencyName.replace(/^Department of /, "")
+    : "All agencies";
+  const hasFilter =
+    Boolean(agency) || Boolean(subAgency) || maxMonths !== "36" || minScore !== "0";
 
   return (
     <section>
@@ -106,6 +122,18 @@ export default async function RadarPage({
         action="/"
         className="flex items-center gap-3 mb-5 flex-wrap"
       >
+        <FilterSelect
+          name="agency"
+          label="Agency"
+          value={agency}
+          options={[
+            { value: "", label: "All agencies" },
+            ...((agencies ?? []).map((a) => ({
+              value: a.code,
+              label: `${a.name.replace(/^Department of /, "")} (${a.candidate_count})`,
+            }))),
+          ]}
+        />
         <FilterSelect
           name="subAgency"
           label="Sub-agency"
@@ -147,7 +175,7 @@ export default async function RadarPage({
         >
           Apply
         </button>
-        {(subAgency || maxMonths !== "36" || minScore !== "0") && (
+        {hasFilter && (
           <a
             href="/"
             className="px-3 h-9 inline-flex items-center text-sm text-zinc-500 hover:text-zinc-300"
@@ -204,10 +232,14 @@ export default async function RadarPage({
           label="Coverage"
           rawValue={
             <span className="text-base font-semibold mono">
-              DHS · HHS
+              {agencyLabel} · 541511/541512
             </span>
           }
-          note="IT services · NAICS 541511/541512"
+          note={
+            agencyName
+              ? "filtered agency · IT services"
+              : `${(agencies ?? []).length} agencies · IT services`
+          }
         />
       </div>
 
