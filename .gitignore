@@ -24,6 +24,12 @@ dbt/target/
 dbt/dbt_packages/
 dbt/logs/
 profiles.yml
+dbt/package-lock.concurrent-update-lock
+
+# Dagster local state
+.tmp_dagster_home*/
+orchestration/tmp*/
+$DAGSTER_HOME/
 
 # Node / Next.js
 node_modules/

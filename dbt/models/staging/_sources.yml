@@ -9,6 +9,10 @@ sources:
         description: >
           USASpending.gov prime contract award transactions, one row per
           modification action. Loaded by `pipelines/load_to_postgres.py`.
+        loaded_at_field: loaded_at
+        freshness:
+          warn_after: {count: 7, period: day}
+          error_after: {count: 30, period: day}
         columns:
           - name: award_unique_key
             description: USASpending-generated award identifier (stable across mods).
@@ -26,3 +30,5 @@ sources:
             description: Date the modification was signed.
           - name: pop_current_end_date
             description: Current period-of-performance end date (drives recompete timing).
+          - name: loaded_at
+            description: Wall-clock time the row landed in Postgres — drives source freshness.

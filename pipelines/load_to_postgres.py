@@ -1,10 +1,11 @@
 """
 Load local parquet files into Postgres raw.award_transactions.
 
-Reads every data/raw/award_transactions/fy=*/*.parquet file and COPYs the rows
-into Postgres. Creates the schema + table if missing. Idempotent per FY: each
-run truncates and reloads the target table (MVP scale — can switch to merge
-semantics in Phase 2).
+Reads every data/raw/award_transactions/agency=*/fy=*/*.parquet file and COPYs
+the rows into Postgres. Creates the schema + table if missing. Idempotent per
+(agency, FY): each file clears only its own agency's rows for that fiscal year
+before reloading, so loading one agency never wipes another sharing the FY.
+(Legacy flat fy=*/ caches still load.)
 
 Usage:
     python load_to_postgres.py                        # load all FYs
@@ -95,7 +96,7 @@ def discover_parquet(in_dir: Path, fy_filter: int | None) -> list[tuple[int, Pat
     """Find every fy=YYYY partition under in_dir, at any depth.
 
     Supports both the flat layout (in_dir/fy=YYYY/*.parquet) and the
-    per-agency layout (in_dir/<agency>/fy=YYYY/*.parquet) so multiple
+    per-agency layout (in_dir/agency=<code>/fy=YYYY/*.parquet) so multiple
     agencies can be ingested into sibling folders and loaded together.
     """
     found: list[tuple[int, Path]] = []
@@ -148,6 +149,27 @@ def load_file(engine: Engine, fy: int, path: Path, append_only: bool) -> int:
     return len(pdf)
 
 
+def dedupe_awards(engine: Engine) -> int:
+    """Collapse duplicate award_unique_key rows, keeping one.
+
+    USASpending's award-summaries download returns one row per award covering
+    its whole life, and it ignores the per-FY date_range — so splitting the pull
+    by fiscal year re-fetches the same awards under each fy= partition. Loading
+    all of them would inflate `mart_awards.total_obligated` N-fold. Award keys
+    are globally unique, so keeping a single row per key is the correct grain.
+    """
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            """
+            DELETE FROM raw.award_transactions a
+            USING raw.award_transactions b
+            WHERE a.ctid < b.ctid
+              AND a.award_unique_key = b.award_unique_key
+            """
+        ))
+        return result.rowcount or 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--in-dir", default=str(_repo_root / "data" / "raw" / "award_transactions"))
@@ -165,6 +187,8 @@ def main() -> int:
         "present in the loaded files, then append. Agencies not in this run keep "
         "their existing data (use for scheduled refreshes where a source may fail).",
     )
+    p.add_argument("--no-dedupe", action="store_true",
+                   help="Skip the post-load dedupe on award_unique_key.")
     args = p.parse_args()
 
     dsn = os.getenv("DATABASE_URL")
@@ -208,7 +232,13 @@ def main() -> int:
         n = load_file(engine, fy, path, append_only)
         print(f"  FY{fy}  {path.relative_to(in_dir)}  {n:,} rows")
         total += n
-    print(f"\nDone. {total:,} total rows loaded.")
+    print(f"\nLoaded {total:,} rows.")
+
+    if not args.no_dedupe:
+        removed = dedupe_awards(engine)
+        if removed:
+            print(f"Deduped {removed:,} duplicate award_unique_key rows.")
+    print("Done.")
     return 0
 
 

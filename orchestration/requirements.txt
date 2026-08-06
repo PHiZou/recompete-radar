@@ -1,0 +1,4 @@
+# dagster-dbt pins the compatible dagster core; let it drive the resolution.
+dagster-dbt
+dagster-webserver
+dbt-postgres
