@@ -23,6 +23,27 @@ type ApiSummary = {
   } | null;
   sub_agency_filter: string | null;
 };
+type ApiRecompete = {
+  piid: string;
+  naics: string;
+  title: string;
+  sub_agency: string;
+  incumbent: string;
+  incumbent_uei: string | null;
+  pop_end: string;
+  months_to_pop_end: number;
+  value_millions: number;
+  recompete_score: number;
+  incumbent_strength: number;
+  breakdown?: {
+    pop_window_pts: number;
+    definitive_pts: number;
+    above_median_pts: number;
+    lifetime_pts: number;
+    breadth_pts: number;
+    recency_pts: number;
+  };
+};
 
 async function fetchJSON<T>(path: string): Promise<T | null> {
   try {
@@ -35,10 +56,9 @@ async function fetchJSON<T>(path: string): Promise<T | null> {
 }
 
 async function fetchRecompetes(qs: string): Promise<RecompeteCandidate[]> {
-  const data = await fetchJSON<unknown[]>(`/recompetes?${qs}`);
+  const data = await fetchJSON<ApiRecompete[]>(`/recompetes?${qs}`);
   if (!Array.isArray(data) || data.length === 0) return [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return data.map((r: any) => ({
+  return data.map((r) => ({
     piid: r.piid,
     naics: r.naics,
     title: r.title,
