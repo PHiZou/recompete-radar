@@ -114,12 +114,19 @@ def discover_parquet(in_dir: Path, fy_filter: int | None) -> list[tuple[int, Pat
 
 
 def agency_codes_in(files: list[tuple[int, Path]]) -> list[str]:
-    """Distinct awarding_agency_code values across the given parquet files."""
+    """Distinct awarding_agency_code values across the given parquet files.
+
+    USASpending hands these back as integers, so polars types the column Int64
+    while raw.award_transactions stores it as text. Inserts survive that (Postgres
+    casts int to text in assignment context) but comparisons don't, so the replace
+    delete must bind text or it fails with `operator does not exist: text = integer`.
+    Codes are stored unpadded ('36', not '036'), which is what str() produces.
+    """
     codes: set[str] = set()
     for _fy, path in files:
         col = pl.read_parquet(path, columns=["awarding_agency_code"])
         codes.update(
-            c for c in col["awarding_agency_code"].drop_nulls().unique().to_list() if c
+            str(c) for c in col["awarding_agency_code"].drop_nulls().unique().to_list() if c
         )
     return sorted(codes)
 
