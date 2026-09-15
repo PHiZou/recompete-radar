@@ -165,6 +165,8 @@ ORDER BY q;
 -- causal follow-on should exist) tells you how much is real:
 --     near window     30.1% incumbent retained  (n=10,393)
 --     placebo window  11.3% incumbent retained  (n=3,687)
+-- Re-run 2026-09-14 on 6 agencies (Treasury added): near 30.5% (n=12,299),
+-- placebo 11.4% (n=4,200) — same 2.7x lift.
 -- A 2.7x lift means the match key is capturing something, but a good share of
 -- "near" matches are still unrelated contracts. Treat the LEVEL as soft.
 --
@@ -221,6 +223,17 @@ ORDER BY w;
 -- gave 22.9 / 38.8 / 28.4 / 27.6 / 22.0 — same shape, peak at Q2 and trough at
 -- Q5. Re-running on 5 agencies x 3 NAICS with n=2,079 per quintile reproduced
 -- it. That survival across a 54% data increase is the strongest evidence here.
+--
+-- REPLICATED AGAIN 2026-09-14 on 6 agencies x 3 NAICS (Treasury added,
+-- n=2,460 per quintile):
+--     Q1  $0.3–20.7M     28.0%
+--     Q2  $20.8–87.7M    36.3%   <- best
+--     Q3  $87.7–238.3M   29.3%
+--     Q4  $238.3M–1.28B  31.5%
+--     Q5  $1.28–10.9B    27.4%   <- worst
+-- Same shape a third time. The Q2–Q5 gap narrowed (13.6 -> 8.9 pts), and the
+-- band edges drift upward as scope grows because lifetime_obligated only counts
+-- in-scope dollars — rebase query 7's band after every scope change.
 --
 -- CAVEAT — look-ahead bias: mart_vendors.lifetime_obligated is as-of-today,
 -- not as-of-contract-end, so a vendor that grew after winning is scored on its
@@ -281,10 +294,11 @@ ORDER BY q;
 -- four previously-recommended firms (ASET Partners/USSS, Alpha Omega/ICE,
 -- AreteCSBD/CBP, Patriot/CBP) that were unreachable without one.
 --
--- SIZE BAND rebased to $18.4–82.1M, the retention sweet spot recomputed on the
--- expanded data (quintiles: 28.8 / 37.7 / 28.7 / 31.1 / 24.1 % retained). The
--- finding REPLICATED — peak still Q2, trough still the largest quintile — with
--- per-quintile n up from 1,351 to 2,079.
+-- SIZE BAND rebased to $20.8–87.7M on 2026-09-14, the Q2 retention sweet spot
+-- recomputed after adding Treasury (quintiles: 28.0 / 36.3 / 29.3 / 31.5 / 27.4
+-- % retained). Previously $18.4–82.1M on the 5-agency data. Rebase again after
+-- any scope change: a vendor's in-scope lifetime grows when its other agencies
+-- are added (FedTec went $51.4M -> $91.1M from 19 Treasury awards).
 --
 -- Results (2026-08-07), most recent win first:
 --   RAVENTEK           2026-07-22  $3.5M  HHS/ASFR   2 recompetes / $4.4M
@@ -381,7 +395,7 @@ SELECT v.vendor_name, w.sub AS win_agency, w.sd AS win_date,
 FROM wins w
 JOIN dev_marts.mart_vendors v ON v.vendor_uei = w.uei
 JOIN rec r ON r.uei = w.uei
-WHERE v.lifetime_obligated BETWEEN 18400000 AND 82100000   -- rebased sweet spot
+WHERE v.lifetime_obligated BETWEEN 20800000 AND 87700000   -- rebased sweet spot (2026-09-14)
   AND v.vendor_name !~* '(^| )JV|JOINT VENTURE| - '
 ORDER BY w.sd DESC
 LIMIT 25;
