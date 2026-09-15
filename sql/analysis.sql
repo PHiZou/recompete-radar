@@ -29,7 +29,8 @@
 --  Nothing here generalizes to federal contracting as a whole.
 --
 --  CLEARANCE NOTE (this drives agency choice): HHS, VA, SSA and Commerce work
---  is essentially all public-trust/suitability — no clearance. DHS is MIXED:
+--  is essentially all public-trust/suitability — no clearance. Treasury (added
+--  2026-09-14; mostly IRS) is likewise public trust. DHS is MIXED:
 --  USCIS and FEMA generally don't require one; CBP, ICE, TSA, USSS and Coast
 --  Guard skew toward requiring one. Query 7 filters accordingly.
 -- ============================================================================
@@ -274,8 +275,8 @@ ORDER BY q;
 --
 -- Ordered by win recency, which is the whole game for a hiring signal.
 --
--- CLEARANCE FILTER: whole-agency for HHS / VA / SSA / Commerce (all public
--- trust). DHS only via USCIS and FEMA — CBP, ICE, TSA, USSS and Coast Guard
+-- CLEARANCE FILTER: whole-agency for HHS / VA / SSA / Commerce / Treasury (all
+-- public trust). DHS only via USCIS and FEMA — CBP, ICE, TSA, USSS and Coast Guard
 -- are excluded because they skew toward requiring a clearance. This dropped
 -- four previously-recommended firms (ASET Partners/USSS, Alpha Omega/ICE,
 -- AreteCSBD/CBP, Patriot/CBP) that were unreachable without one.
@@ -342,7 +343,8 @@ clearance_free AS (
     WHERE ag IN ('Department of Health and Human Services',
                  'Department of Veterans Affairs',
                  'Social Security Administration',
-                 'Department of Commerce')
+                 'Department of Commerce',
+                 'Department of the Treasury')
        OR sub IN ('U.S. Citizenship and Immigration Service',
                   'Federal Emergency Management Agency')
 ),
@@ -366,7 +368,8 @@ rec AS (
       AND (awarding_agency_name IN ('Department of Health and Human Services',
                                     'Department of Veterans Affairs',
                                     'Social Security Administration',
-                                    'Department of Commerce')
+                                    'Department of Commerce',
+                                    'Department of the Treasury')
         OR awarding_sub_agency_name IN ('U.S. Citizenship and Immigration Service',
                                         'Federal Emergency Management Agency'))
     GROUP BY 1
