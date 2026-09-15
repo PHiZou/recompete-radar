@@ -205,11 +205,19 @@ def coverage_summary() -> CoverageSummary:
         raise HTTPException(503, "DB not configured")
 
     with eng.connect() as conn:
+        # USASpending has occasional typo end dates (e.g. 2107-11-21) that would
+        # set the upper year on their own. Only end dates within 15 years of
+        # today count toward the displayed range. Aside from that typo, every
+        # award in the loaded data ends by 2034. Award counts and dollars still
+        # include every row.
         agg = conn.execute(text("""
             SELECT COUNT(*) AS award_count,
                    COALESCE(SUM(total_obligated), 0)::float / 1e6 AS obligated_m,
                    MIN(EXTRACT(YEAR FROM pop_start_date))::int AS first_pop_year,
-                   MAX(EXTRACT(YEAR FROM pop_current_end_date))::int AS last_pop_year
+                   MAX(EXTRACT(YEAR FROM pop_current_end_date))
+                       FILTER (WHERE pop_current_end_date
+                               <= CURRENT_DATE + INTERVAL '15 years')::int
+                       AS last_pop_year
             FROM dev_marts.mart_awards
         """)).mappings().one()
         agencies = conn.execute(text("""
