@@ -3,17 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const tabs: { label: string; href: string; match: (p: string) => boolean }[] = [
+// Vendor and Agency pages 404 without a live API, so hide their tabs on
+// deployments that have no NEXT_PUBLIC_API_URL (inlined at build time).
+const hasApi = Boolean(process.env.NEXT_PUBLIC_API_URL);
+
+const allTabs: {
+  label: string;
+  href: string;
+  match: (p: string) => boolean;
+  needsApi?: boolean;
+}[] = [
   { label: "Radar", href: "/", match: (p) => p === "/" },
   {
     label: "Vendor",
-    href: "/vendors/leidos",
+    href: "/vendors/VV9KH3L99VE3",
     match: (p) => p.startsWith("/vendors"),
+    needsApi: true,
   },
   {
     label: "Agency",
-    href: "/agencies/dhs",
+    href: "/agencies/70",
     match: (p) => p.startsWith("/agencies"),
+    needsApi: true,
   },
   {
     label: "Insights",
@@ -21,6 +32,8 @@ const tabs: { label: string; href: string; match: (p: string) => boolean }[] = [
     match: (p) => p.startsWith("/insights"),
   },
 ];
+
+const tabs = allTabs.filter((tab) => hasApi || !tab.needsApi);
 
 export default function TopNav() {
   const pathname = usePathname();
