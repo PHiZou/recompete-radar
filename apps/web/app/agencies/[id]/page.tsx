@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { agencyProfiles as mockAgencyProfiles } from "@/lib/mock-data";
 
 const fmtM = (m: number) =>
   m >= 1000 ? `$${(m / 1000).toFixed(2)}B` : `$${m.toFixed(0)}M`;
@@ -25,13 +26,35 @@ type AgencyProfile = {
 };
 
 async function fetchAgency(id: string): Promise<AgencyProfile | null> {
+  const mockAgency = () => {
+    const mock = mockAgencyProfiles[id];
+    if (!mock) return null;
+    return {
+      id: mock.id,
+      name: mock.name,
+      parent_name: "",
+      level: "top",
+      total_obligated_millions: mock.fiveYearObligatedBillions * 1000,
+      award_count: 0,
+      unique_vendors: mock.uniqueVendors,
+      naics_count: mock.topNaics.split(" · ").length,
+      recompete_candidates: mock.recompeteCandidates,
+      recompete_exposure_millions: mock.recompeteExposureBillions * 1000,
+      top_vendors: mock.topVendors.map((v) => ({
+        uei: v.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+        name: v.name,
+        obligated_millions: (v.share / 100) * mock.fiveYearObligatedBillions * 1000,
+        share_pct: v.share,
+      })),
+    } satisfies AgencyProfile;
+  };
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
   try {
     const res = await fetch(`${base}/agencies/${id}`, { cache: "no-store" });
-    if (!res.ok) return null;
+    if (!res.ok) return mockAgency();
     return (await res.json()) as AgencyProfile;
   } catch {
-    return null;
+    return mockAgency();
   }
 }
 
@@ -55,9 +78,11 @@ export default async function AgencyPage({
         <span className="text-zinc-100">{a.id}</span>
       </div>
 
-      <div className="card p-6 mb-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{a.name}</h1>
+      <div className="card p-4 sm:p-6 mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+            {a.name}
+          </h1>
           <span className="text-xs text-zinc-500 mono border border-[#1f1f23] rounded-md px-2 py-0.5">
             {a.level === "top" ? "toptier" : "sub-agency"} · code {a.id}
           </span>
@@ -68,7 +93,7 @@ export default async function AgencyPage({
           </div>
         )}
 
-        <div className="grid grid-cols-5 gap-6 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6 mt-6">
           <Metric
             label="Total obligated (slice)"
             value={`$${(a.total_obligated_millions / 1000).toFixed(2)}`}
@@ -103,7 +128,7 @@ export default async function AgencyPage({
       <div className="card p-5">
         <div className="text-sm font-medium mb-1">Top vendors by obligations</div>
         <div className="text-xs text-zinc-500 mb-4">
-          Share of total obligated $ in the DHS · 541511/541512 slice
+          Share of total obligated $ in the loaded award slice
         </div>
         {a.top_vendors.length === 0 ? (
           <div className="text-sm text-zinc-500">No vendor data.</div>

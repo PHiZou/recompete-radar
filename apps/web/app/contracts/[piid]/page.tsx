@@ -98,11 +98,13 @@ export default async function ContractPage({
         <span className="text-zinc-100">{c.piid}</span>
       </div>
 
-      <div className="card p-6 mb-4">
-        <div className="flex items-start justify-between gap-6">
+      <div className="card p-4 sm:p-6 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-semibold tracking-tight">{c.title}</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+                {c.title}
+              </h1>
               <span className="text-xs text-zinc-500 mono border border-[#1f1f23] rounded-md px-2 py-0.5">
                 PIID · {c.piid}
               </span>
@@ -119,14 +121,14 @@ export default async function ContractPage({
           </div>
           {c.recompete_score != null && (
             <div className="flex gap-3 shrink-0">
-              <div className="text-right">
+              <div className="sm:text-right">
                 <div className="text-xs text-zinc-500 uppercase tracking-wider">Recompete</div>
                 <div className="mt-1">
                   <ScorePill value={c.recompete_score} tone={scoreTone(c.recompete_score)} />
                 </div>
               </div>
               {c.incumbent_strength != null && (
-                <div className="text-right">
+                <div className="sm:text-right">
                   <div className="text-xs text-zinc-500 uppercase tracking-wider">Incumbent</div>
                   <div className="mt-1">
                     <ScorePill value={c.incumbent_strength} tone={scoreTone(c.incumbent_strength)} />
@@ -137,7 +139,7 @@ export default async function ContractPage({
           )}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-6">
           <Field label="Incumbent" value={
             c.incumbent_uei ? (
               <a href={`/vendors/${c.incumbent_uei}`} className="text-amber-400 hover:underline">
@@ -160,7 +162,7 @@ export default async function ContractPage({
       {c.breakdown && c.recompete_score != null && (
         <div className="card p-5 mb-4">
           <div className="text-sm font-medium mb-3">Score breakdown</div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <BreakdownRow label="POP window" value={c.breakdown.pop_window_pts} max={30} />
             <BreakdownRow label="Definitive contract" value={c.breakdown.definitive_pts} max={15} />
             <BreakdownRow label="Above-median value" value={c.breakdown.above_median_pts} max={15} />
@@ -172,7 +174,7 @@ export default async function ContractPage({
       )}
 
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 py-3 border-b border-[#1f1f23]">
           <div className="text-sm font-medium">
             Modification history
           </div>

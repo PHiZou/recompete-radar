@@ -11,6 +11,15 @@ const fmtM = (m: number) =>
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type ApiSubAgency = { code: string; name: string; candidate_count: number };
+type ApiCoverage = {
+  agency_count: number;
+  agencies: string[];
+  naics_codes: string[];
+  award_count: number;
+  obligated_millions: number;
+  earliest_pop_start_year: number | null;
+  latest_pop_end_year: number | null;
+};
 type ApiSummary = {
   candidates: number;
   dollars_at_stake_millions: number;
@@ -78,10 +87,11 @@ export default async function RadarPage({
   params.set("limit", "100");
   const qs = params.toString();
 
-  const [liveRows, liveSummary, subAgencies] = await Promise.all([
+  const [liveRows, liveSummary, subAgencies, liveCoverage] = await Promise.all([
     fetchRecompetes(qs),
     fetchJSON<ApiSummary>(`/summary?${qs}`),
     fetchJSON<ApiSubAgency[]>(`/sub_agencies`),
+    fetchJSON<ApiCoverage>(`/coverage`),
   ]);
 
   const isLive = liveRows.length > 0;
@@ -94,9 +104,34 @@ export default async function RadarPage({
     mockSummary.dollarsAtStakeBillions * 1000;
   const kpiTopIncumbent = liveSummary?.top_incumbent ?? null;
   const activeSubAgencyCount = (subAgencies ?? []).length;
+  const coverage =
+    liveCoverage ??
+    ({
+      agency_count: 5,
+      agencies: [
+        "Department of Health and Human Services",
+        "Department of Veterans Affairs",
+        "Department of Homeland Security",
+        "Department of Commerce",
+        "Social Security Administration",
+      ],
+      naics_codes: ["518210", "541511", "541512"],
+      award_count: 57566,
+      obligated_millions: 0,
+      earliest_pop_start_year: 1996,
+      latest_pop_end_year: 2026,
+    } satisfies ApiCoverage);
 
   const subAgencyName =
     (subAgencies ?? []).find((s) => s.code === subAgency)?.name ?? null;
+  const agencyShortList = coverage.agencies
+    .map(shortAgencyName)
+    .slice(0, 5)
+    .join(" · ");
+  const popYearRange =
+    coverage.earliest_pop_start_year && coverage.latest_pop_end_year
+      ? `${coverage.earliest_pop_start_year}–${coverage.latest_pop_end_year}`
+      : "loaded POP years";
 
   return (
     <section>
@@ -104,7 +139,7 @@ export default async function RadarPage({
       <form
         method="GET"
         action="/"
-        className="flex items-center gap-3 mb-5 flex-wrap"
+        className="grid grid-cols-1 sm:flex sm:items-center gap-3 mb-5 sm:flex-wrap"
       >
         <FilterSelect
           name="subAgency"
@@ -143,7 +178,7 @@ export default async function RadarPage({
         />
         <button
           type="submit"
-          className="px-3 h-9 rounded-md bg-amber-500 text-zinc-950 text-sm font-medium hover:bg-amber-400"
+          className="px-3 h-10 sm:h-9 rounded-md bg-amber-500 text-zinc-950 text-sm font-medium hover:bg-amber-400"
         >
           Apply
         </button>
@@ -158,7 +193,7 @@ export default async function RadarPage({
       </form>
 
       {/* Summary strip */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
         <KpiCard
           label="Candidates"
           value={`${kpiCandidates}`}
@@ -204,16 +239,32 @@ export default async function RadarPage({
           label="Coverage"
           rawValue={
             <span className="text-base font-semibold mono">
-              DHS · HHS
+              {coverage.agency_count} agencies
             </span>
           }
-          note="IT services · NAICS 541511/541512"
+          note={`${coverage.naics_codes.join("/")} · ${coverage.award_count.toLocaleString()} awards`}
         />
+      </div>
+
+      <div className="card px-4 py-3 mb-5 flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-6">
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">
+            Current loaded scope
+          </div>
+          <div className="text-sm text-zinc-300">
+            {agencyShortList} · NAICS {coverage.naics_codes.join(", ")}
+          </div>
+        </div>
+        <div className="md:text-right text-xs text-zinc-500 max-w-[520px]">
+          POP coverage {popYearRange}. USASpending export rows are award
+          summaries, so the product emphasizes recompete candidates and
+          competition signals rather than modification history.
+        </div>
       </div>
 
       {/* Table */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 py-3 border-b border-[#1f1f23]">
           <div className="text-sm text-zinc-400">
             Recompete candidates · sorted by{" "}
             <span className="text-zinc-100">recompete score</span>
@@ -354,7 +405,7 @@ export default async function RadarPage({
                 every score is decomposed — no black box
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
               {rows.map((r) => (
                 <ScoreRow
                   key={r.label}
@@ -365,7 +416,7 @@ export default async function RadarPage({
               ))}
             </div>
             <div className="divider my-4" />
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
               <span className="text-zinc-500">
                 Recompete · {b.popWindowPts + b.definitivePts + b.aboveMedianPts}
                 {"  "}·{"  "}
@@ -382,6 +433,16 @@ export default async function RadarPage({
   );
 }
 
+function shortAgencyName(name: string) {
+  return name
+    .replace("Department of ", "")
+    .replace("Health and Human Services", "HHS")
+    .replace("Homeland Security", "DHS")
+    .replace("Veterans Affairs", "VA")
+    .replace("Commerce", "Commerce")
+    .replace("Social Security Administration", "SSA");
+}
+
 function FilterSelect({
   name,
   label,
@@ -396,20 +457,22 @@ function FilterSelect({
   mono?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 px-3 h-9 card text-sm">
-      <span className="text-zinc-500 text-xs uppercase tracking-wider">
+    <label className="flex items-center justify-between gap-2 px-3 h-10 sm:h-9 card text-sm">
+      <span className="text-zinc-500 text-xs uppercase tracking-wider whitespace-nowrap">
         {label}
       </span>
       <select
         name={name}
         defaultValue={value}
-        className={`bg-transparent outline-none font-medium ${mono ? "mono" : ""}`}
+        className={`bg-transparent outline-none font-medium min-w-0 ${
+          mono ? "mono" : ""
+        }`}
       >
         {options.map((o) => (
           <option
             key={o.value}
             value={o.value}
-            className="bg-[#0a0a0c] text-zinc-100"
+            className="bg-[#fdf6e3] text-zinc-100"
           >
             {o.label}
           </option>
@@ -435,7 +498,7 @@ function KpiCard({
   rawValue?: React.ReactNode;
 }) {
   return (
-    <div className="card px-4 py-3">
+    <div className="card px-4 py-3 min-h-[92px]">
       <div className="text-xs text-zinc-500 uppercase tracking-wider">
         {label}
       </div>
