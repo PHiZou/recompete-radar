@@ -142,6 +142,16 @@ class SubAgency(BaseModel):
     candidate_count: int
 
 
+class CoverageSummary(BaseModel):
+    agency_count: int
+    agencies: list[str]
+    naics_codes: list[str]
+    award_count: int
+    obligated_millions: float
+    earliest_pop_start_year: int | None
+    latest_pop_end_year: int | None
+
+
 @app.get("/summary", response_model=RadarSummary, tags=["radar"])
 def radar_summary(
     sub_agency_code: str | None = None,
@@ -180,6 +190,52 @@ def radar_summary(
             award_count=int(top["n"]),
         ) if top else None,
         sub_agency_filter=sub_agency_code,
+    )
+
+
+@app.get("/coverage", response_model=CoverageSummary, tags=["radar"])
+def coverage_summary() -> CoverageSummary:
+    """High-level scope of the loaded mart data.
+
+    Derived from the mart instead of README constants so the UI stays honest
+    when the ingest scope changes.
+    """
+    eng = get_engine()
+    if eng is None:
+        raise HTTPException(503, "DB not configured")
+
+    with eng.connect() as conn:
+        agg = conn.execute(text("""
+            SELECT COUNT(*) AS award_count,
+                   COALESCE(SUM(total_obligated), 0)::float / 1e6 AS obligated_m,
+                   MIN(EXTRACT(YEAR FROM pop_start_date))::int AS first_pop_year,
+                   MAX(EXTRACT(YEAR FROM pop_current_end_date))::int AS last_pop_year
+            FROM dev_marts.mart_awards
+        """)).mappings().one()
+        agencies = conn.execute(text("""
+            SELECT awarding_agency_name AS name,
+                   SUM(total_obligated) AS obligated
+            FROM dev_marts.mart_awards
+            WHERE awarding_agency_name IS NOT NULL
+            GROUP BY 1
+            ORDER BY 2 DESC NULLS LAST
+        """)).mappings().all()
+        naics = conn.execute(text("""
+            SELECT naics_code
+            FROM dev_marts.mart_awards
+            WHERE naics_code IS NOT NULL
+            GROUP BY 1
+            ORDER BY 1
+        """)).scalars().all()
+
+    return CoverageSummary(
+        agency_count=len(agencies),
+        agencies=[str(r["name"]) for r in agencies],
+        naics_codes=[str(code) for code in naics],
+        award_count=int(agg["award_count"]),
+        obligated_millions=round(float(agg["obligated_m"]), 2),
+        earliest_pop_start_year=agg["first_pop_year"],
+        latest_pop_end_year=agg["last_pop_year"],
     )
 
 
