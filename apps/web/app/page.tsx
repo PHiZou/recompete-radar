@@ -107,12 +107,13 @@ export default async function RadarPage({
   const coverage =
     liveCoverage ??
     ({
-      agency_count: 5,
+      agency_count: 6,
       agencies: [
         "Department of Health and Human Services",
         "Department of Veterans Affairs",
         "Department of Homeland Security",
         "Department of Commerce",
+        "Department of the Treasury",
         "Social Security Administration",
       ],
       naics_codes: ["518210", "541511", "541512"],
@@ -440,6 +441,7 @@ function shortAgencyName(name: string) {
     .replace("Homeland Security", "DHS")
     .replace("Veterans Affairs", "VA")
     .replace("Commerce", "Commerce")
+    .replace("the Treasury", "Treasury")
     .replace("Social Security Administration", "SSA");
 }
 

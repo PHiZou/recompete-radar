@@ -42,12 +42,25 @@ FY_ATTEMPTS=(2024 2023 2025 2022 2021 2026)
 # HHS, VA, SSA, and Commerce/Census effectively never require a clearance.
 # DHS is mixed — CBP/ICE/TSA/USSS/Coast Guard skew toward requiring one, while
 # USCIS/FEMA generally do not. DoD stays out: clearance-heavy and far larger.
+#
+# Treasury added 2026-09-14 after measuring a real download: 7,515 rows, 56%
+# IRS (public trust), 69% of rows to VA/MD/DC-registered recipients, median
+# award $195k, PSC mix is IT services / programming / business applications.
+#
+# Deliberately EXCLUDED, measured 2026-09-14:
+#   GSA — 17,787 rows, 93% Federal Acquisition Service, i.e. mostly assisted
+#     acquisitions and schedule vehicles bought on behalf of OTHER agencies
+#     (including DoD), so clearance status can't be read from the awarding
+#     agency. Median award is $0 (vehicle/IDV rows) and 2,115 rows are
+#     "RADIO TV EQ" totaling $4.2M. Its $72.9B would swamp every other agency
+#     in the Radar. Revisit only with funding-agency data and vehicle filtering.
 AGENCIES=(
   "dhs:Department of Homeland Security"
   "hhs:Department of Health and Human Services"
   "va:Department of Veterans Affairs"
   "ssa:Social Security Administration"
   "doc:Department of Commerce"
+  "treas:Department of the Treasury"
 )
 
 for spec in "${AGENCIES[@]}"; do
