@@ -17,11 +17,13 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen">
         <TopNav />
-        <main className="max-w-[1400px] mx-auto px-6 py-6">{children}</main>
-        <footer className="max-w-[1400px] mx-auto px-6 mt-8 pb-10 text-xs text-zinc-500 flex items-center justify-between">
+        <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+          {children}
+        </main>
+        <footer className="max-w-[1400px] mx-auto px-4 sm:px-6 mt-8 pb-10 text-xs text-zinc-500 flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
           <div>
-            Data: USASpending.gov prime awards · DHS · HHS · IT services ·
-            FY2021–FY2026 · obligated $
+            Data: USASpending.gov prime award summaries · multi-agency IT/data
+            services scope · obligated $
           </div>
           <div className="mono">derived from public federal data</div>
         </footer>
