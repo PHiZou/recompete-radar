@@ -1,0 +1,7 @@
+version: 2
+
+seeds:
+  - name: score_weights
+    description: >
+      Log-odds weights for the recompete scorecards, written by
+      pipelines/fit_scores.py. Reference levels carry weight 0.

@@ -5,6 +5,8 @@
  * NOT validated against USASpending.
  */
 
+import type { ScoreBreakdown } from "@/components/score-factors";
+
 export type RecompeteCandidate = {
   piid: string;
   naics: string;
@@ -17,14 +19,7 @@ export type RecompeteCandidate = {
   valueMillions: number;
   recompeteScore: number;
   incumbentStrength: number;
-  breakdown?: {
-    popWindowPts: number;
-    definitivePts: number;
-    aboveMedianPts: number;
-    lifetimePts: number;
-    breadthPts: number;
-    recencyPts: number;
-  };
+  breakdown?: ScoreBreakdown;
 };
 
 export const recompeteCandidates: RecompeteCandidate[] = [

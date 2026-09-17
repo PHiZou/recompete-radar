@@ -184,8 +184,8 @@ AND NULLIF(contract_award_type, '')
       <Finding
         id="saturation"
         n={3}
-        title="Incumbent strength score saturates at 65"
-        takeaway="54.1% of the 3,658 recompete candidates are tied at incumbent_strength = 65 — the score's structural maximum. With ties broken by dollars, the ranked radar is close to “sorted by contract size.”"
+        title="The original scores didn't discriminate, so they were rebuilt"
+        takeaway="In the original points model, 54.1% of the 3,658 recompete candidates tied at incumbent_strength = 65, the score's structural maximum. With ties broken by dollars, the radar was close to “sorted by contract size.” Since 2026-09-16 both scores are backtested probabilities instead."
         source="Queries 3–4 · The scores don't discriminate"
       >
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mb-5">
@@ -225,6 +225,22 @@ AND NULLIF(contract_award_type, '')
             "Correlation between strength and offers received is effectively zero, and single-offer rate falls as strength rises — backwards for a defensibility score.",
             "recompete_score has the same problem: it cannot exceed 60, and the least(100, …) wrappers never bind.",
             "Saturation worsened after the scope expansion (52.5% → 54.1%) because vendor totals aggregate across NAICS.",
+          ]}
+        />
+
+        <div className="mt-6 text-sm font-medium">The rebuild</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mt-3 mb-5">
+          <Metric label="Retention AUC" value="0.84" accent note="old score: 0.56" />
+          <Metric label="Placebo AUC" value="0.76" note="share due to matching" />
+          <Metric label="Largest tie" value="7.1" suffix="%" note="was 54.1%" />
+          <Metric label="Corr. w/ offers" value="−0.15" note="was +0.0145" />
+        </div>
+        <Notes
+          items={[
+            "incumbent_strength is now P(incumbent wins the follow-on). recompete_score is P(a follow-on happens) × (1 − that), which is the chance a new vendor wins the work.",
+            "Both come from logistic scorecards fitted on ended contracts with inferred follow-ons and point-in-time features. The models were trained on contracts that ended before 2021 and tested on later ones.",
+            "Biggest retention factors: 0–1 rival vendors at the office (×10 odds), sole-source (×4.2), 4+ prior awards there (×3.4). Incumbent size is not a factor.",
+            "The same model still scores 0.76 on a placebo window, so the matching method explains part of the signal. Treat scores as a ranking, not exact odds.",
           ]}
         />
       </Finding>

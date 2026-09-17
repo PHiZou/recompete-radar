@@ -61,5 +61,6 @@ jobs:
         working-directory: dbt
         run: |
           dbt deps
+          dbt seed
           dbt run
           dbt test

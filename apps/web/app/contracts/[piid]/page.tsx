@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import ScorePill, { scoreTone } from "@/components/score-pill";
+import ScoreFactors, { type ScoreBreakdown } from "@/components/score-factors";
 
 const fmtM = (m: number | null | undefined) =>
   m == null ? "—" : Math.abs(m) >= 1 ? `$${m.toFixed(2)}M` : `$${(m * 1000).toFixed(0)}K`;
@@ -18,15 +19,6 @@ type Modification = {
   obligation_delta: number;
   cumulative_obligated: number;
   pop_end_as_of: string | null;
-};
-
-type Breakdown = {
-  pop_window_pts: number;
-  definitive_pts: number;
-  above_median_pts: number;
-  lifetime_pts: number;
-  breadth_pts: number;
-  recency_pts: number;
 };
 
 type ContractDetail = {
@@ -53,7 +45,7 @@ type ContractDetail = {
   base_and_all_options_millions: number | null;
   recompete_score: number | null;
   incumbent_strength: number | null;
-  breakdown: Breakdown | null;
+  breakdown: ScoreBreakdown | null;
   modification_count: number;
   modifications: Modification[];
 };
@@ -131,7 +123,7 @@ export default async function ContractPage({
                 <div className="sm:text-right">
                   <div className="text-xs text-zinc-500 uppercase tracking-wider">Incumbent</div>
                   <div className="mt-1">
-                    <ScorePill value={c.incumbent_strength} tone={scoreTone(c.incumbent_strength)} />
+                    <ScorePill value={c.incumbent_strength} tone={c.incumbent_strength >= 80 ? "str" : c.incumbent_strength >= 60 ? "mid" : "lo"} />
                   </div>
                 </div>
               )}
@@ -159,17 +151,10 @@ export default async function ContractPage({
         </div>
       </div>
 
-      {c.breakdown && c.recompete_score != null && (
+      {c.breakdown?.factors && c.recompete_score != null && (
         <div className="card p-5 mb-4">
           <div className="text-sm font-medium mb-3">Score breakdown</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-            <BreakdownRow label="POP window" value={c.breakdown.pop_window_pts} max={30} />
-            <BreakdownRow label="Definitive contract" value={c.breakdown.definitive_pts} max={15} />
-            <BreakdownRow label="Above-median value" value={c.breakdown.above_median_pts} max={15} />
-            <BreakdownRow label="Incumbent · lifetime $" value={c.breakdown.lifetime_pts} max={30} />
-            <BreakdownRow label="Incumbent · breadth" value={c.breakdown.breadth_pts} max={15} />
-            <BreakdownRow label="Incumbent · recency" value={c.breakdown.recency_pts} max={20} />
-          </div>
+          <ScoreFactors breakdown={c.breakdown} />
         </div>
       )}
 
@@ -230,7 +215,7 @@ export default async function ContractPage({
       </div>
 
       <div className="mt-4 text-xs text-zinc-500 mono">
-        Source · USASpending Custom Award API · DHS slice · NAICS 541511/541512 · obligations FY2020+.
+        Source · USASpending award summaries.
       </div>
     </section>
   );
@@ -242,24 +227,6 @@ function Field({ label, value, note }: { label: string; value: React.ReactNode; 
       <div className="text-xs text-zinc-500 uppercase tracking-wider">{label}</div>
       <div className="text-sm font-medium mt-1">{value}</div>
       {note && <div className="text-xs text-zinc-500 mt-0.5 truncate" title={note}>{note}</div>}
-    </div>
-  );
-}
-
-function BreakdownRow({ label, value, max }: { label: string; value: number; max: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs text-zinc-400 mb-1">
-        <span>{label}</span>
-        <span className="mono">
-          <span className="text-zinc-100">{value}</span>
-          <span className="text-zinc-500"> / {max}</span>
-        </span>
-      </div>
-      <div className="h-1.5 rounded bg-[#1f1f23] overflow-hidden">
-        <div className="h-full bar-accent" style={{ width: `${pct}%` }} />
-      </div>
     </div>
   );
 }

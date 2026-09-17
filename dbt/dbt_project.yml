@@ -30,6 +30,12 @@ models:
 seeds:
   sunlight:
     +schema: reference
+    score_weights:
+      +column_types:
+        model: text
+        feature: text
+        level: text
+        weight: numeric
 
 vars:
   # MVP slice — widen in Phase 2

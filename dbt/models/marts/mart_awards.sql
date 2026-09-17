@@ -42,6 +42,8 @@ base as (
         {{ last_non_null('awarding_agency_code', 'action_date') }}     as awarding_agency_code,
         {{ last_non_null('awarding_sub_agency_name', 'action_date') }} as awarding_sub_agency_name,
         {{ last_non_null('awarding_sub_agency_code', 'action_date') }} as awarding_sub_agency_code,
+        {{ last_non_null('awarding_office_code', 'action_date') }}     as awarding_office_code,
+        {{ last_non_null('awarding_office_name', 'action_date') }}     as awarding_office_name,
 
         -- recipient (Weekend-2 TODO: swap for resolved vendor_id from int_vendors)
         {{ last_non_null('recipient_uei', 'action_date') }}          as recipient_uei,
@@ -50,7 +52,8 @@ base as (
         -- procurement characteristics
         {{ last_non_null('contract_award_type', 'action_date') }}    as contract_award_type,
         {{ last_non_null('type_of_set_aside', 'action_date') }}      as type_of_set_aside,
-        {{ last_non_null('extent_competed', 'action_date') }}        as extent_competed
+        {{ last_non_null('extent_competed', 'action_date') }}        as extent_competed,
+        {{ last_non_null('type_of_contract_pricing', 'action_date') }} as type_of_contract_pricing
 
     from tx
     group by 1, 2, 3

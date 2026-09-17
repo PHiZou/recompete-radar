@@ -124,6 +124,36 @@ ORDER BY n DESC;
 -- Saturation got WORSE after the 2026-08-07 expansion (52.5% -> 54.1%), as
 -- predicted: vendor_totals in the dbt model aggregates per recipient_uei with
 -- no NAICS grouping, so adding 518210 pushed more vendors into the caps.
+--
+-- ── FIXED 2026-09-16: scores rebuilt as backtested probabilities ──
+-- Everything above describes the OLD points model. The two scores are now
+-- logistic scorecards fitted on int_score_backtest (the §5 matcher, packaged
+-- as a dbt model, with point-in-time features) by pipelines/fit_scores.py:
+--     incumbent_strength = 100 * P(incumbent wins the follow-on)
+--     recompete_score    = 100 * P(follow-on) * (1 - P(incumbent wins))
+--
+-- Time-split test (fit on ends < 2021, score 2021+):
+--     retention  AUC 0.844  (old points score on the same rows: 0.564)
+--     follow-on  AUC 0.639  (over-predicts the level on 2021+; ranking holds)
+--     PLACEBO    AUC 0.764  <- the same retention model scoring the +3-5y
+--                              window. Much of the signal is the matcher:
+--                              in an office with one vendor, any "follow-on"
+--                              is that vendor. But every factor points the same
+--                              way in both windows, and near > placebo in every
+--                              bucket, so the structure is real and the LEVEL
+--                              is soft.
+--
+-- What predicts retention (odds multipliers vs. baseline): 0-1 rival vendors at
+-- the office+PSC x10, sole-source x4.2, 4+ prior awards there x3.4, 80%+
+-- share x2.3, BPA call x1.8. Standalone contract x0.25, 2+ year POP x0.44.
+-- Incumbent SIZE is not a factor at all (see §6).
+--
+-- The new scores don't collapse onto one value: the most common
+-- incumbent_strength covers 7.1% of rows (was 54.1%), with 95 distinct values.
+-- They also pass the §4 check without being built for it. Offers aren't a
+-- model input, yet single-offer rate climbs 48% -> 54% -> 65% -> 77% across
+-- strength quartiles, corr(strength, offers) = -0.153 (was +0.0145). Part of
+-- that overlap comes through the sole-source factor.
 SELECT incumbent_strength,
        COUNT(*)                                                  AS n,
        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)        AS pct

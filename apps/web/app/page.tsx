@@ -1,4 +1,5 @@
 import ScorePill, { scoreTone } from "@/components/score-pill";
+import ScoreFactors from "@/components/score-factors";
 import {
   recompeteCandidates as mockCandidates,
   radarSummary as mockSummary,
@@ -53,16 +54,8 @@ async function fetchRecompetes(qs: string): Promise<RecompeteCandidate[]> {
     subAgency: r.sub_agency,
     incumbent: r.incumbent,
     incumbentUei: r.incumbent_uei ?? null,
-    breakdown: r.breakdown
-      ? {
-          popWindowPts: r.breakdown.pop_window_pts,
-          definitivePts: r.breakdown.definitive_pts,
-          aboveMedianPts: r.breakdown.above_median_pts,
-          lifetimePts: r.breakdown.lifetime_pts,
-          breadthPts: r.breakdown.breadth_pts,
-          recencyPts: r.breakdown.recency_pts,
-        }
-      : undefined,
+    // older API builds return a different breakdown shape; skip it rather than crash
+    breakdown: r.breakdown?.factors ? r.breakdown : undefined,
     popEnd: r.pop_end,
     monthsToPopEnd: r.months_to_pop_end,
     valueMillions: r.value_millions,
@@ -172,7 +165,7 @@ export default async function RadarPage({
           mono
           options={[
             { value: "0", label: "0" },
-            { value: "30", label: "30" },
+            { value: "40", label: "40" },
             { value: "50", label: "50" },
             { value: "60", label: "60" },
           ]}
@@ -360,73 +353,21 @@ export default async function RadarPage({
       {/* Score explainer — driven by the top live candidate */}
       {recompeteCandidates[0]?.breakdown && (() => {
         const top = recompeteCandidates[0];
-        const b = top.breakdown!;
-        const rows: { label: string; delta: number }[] = [
-          {
-            label: `POP ends in ${top.monthsToPopEnd} months`,
-            delta: b.popWindowPts,
-          },
-          {
-            label: "Contract type is definitive (vs. IDV/order)",
-            delta: b.definitivePts,
-          },
-          {
-            label: "Value above (sub-agency, NAICS) median",
-            delta: b.aboveMedianPts,
-          },
-          {
-            label: "Incumbent: log-scaled lifetime obligations in slice",
-            delta: b.lifetimePts,
-          },
-          {
-            label: "Incumbent: breadth (distinct awards in slice)",
-            delta: b.breadthPts,
-          },
-          {
-            label: "Incumbent: recency of last action",
-            delta: b.recencyPts,
-          },
-        ];
         return (
           <div className="mt-5 card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-xs text-zinc-500 uppercase tracking-wider">
-                  Top candidate · score breakdown
-                </div>
-                <div className="text-base font-medium mt-0.5">
-                  Why recompete score is{" "}
-                  <span className="mono text-amber-400">
-                    {top.recompeteScore}
-                  </span>{" "}
-                  — {top.incumbent} · {top.subAgency}
-                </div>
+            <div className="mb-4">
+              <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                Top candidate · score breakdown
               </div>
-              <span className="text-xs text-zinc-500 mono">
-                every score is decomposed — no black box
-              </span>
+              <div className="text-base font-medium mt-0.5">
+                Why recompete score is{" "}
+                <span className="mono text-amber-400">
+                  {top.recompeteScore}
+                </span>{" "}
+                — {top.incumbent} · {top.subAgency}
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-              {rows.map((r) => (
-                <ScoreRow
-                  key={r.label}
-                  label={r.label}
-                  delta={r.delta > 0 ? `+${r.delta}` : `${r.delta}`}
-                  muted={r.delta === 0}
-                />
-              ))}
-            </div>
-            <div className="divider my-4" />
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm">
-              <span className="text-zinc-500">
-                Recompete · {b.popWindowPts + b.definitivePts + b.aboveMedianPts}
-                {"  "}·{"  "}
-                Incumbent · {b.lifetimePts + b.breadthPts + b.recencyPts}
-              </span>
-              <span className="mono font-semibold text-amber-400 text-lg">
-                {top.recompeteScore} / {top.incumbentStrength}
-              </span>
-            </div>
+            <ScoreFactors breakdown={top.breakdown!} />
           </div>
         );
       })()}
@@ -515,29 +456,6 @@ function KpiCard({
         </div>
       )}
       <div className="text-xs text-zinc-500 mt-1">{noteEl ?? note}</div>
-    </div>
-  );
-}
-
-function ScoreRow({
-  label,
-  delta,
-  muted,
-}: {
-  label: string;
-  delta: string;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-zinc-400">{label}</span>
-      <span
-        className={
-          "mono " + (muted ? "text-zinc-500" : "text-emerald-400")
-        }
-      >
-        {delta}
-      </span>
     </div>
   );
 }

@@ -104,19 +104,30 @@ LIMIT 25;
 
 
 -- ── Lesson 9 · Read the scoring (this is what the website shows) ─────────────
--- Every score is just its parts added up — no black box. Change the WHERE to
--- inspect any single opportunity's breakdown.
+-- Each score is a probability from a small logistic model. Every input is a
+-- named bucket (f_*), and each bucket carries a weight in log-odds (*_w; 0 =
+-- the baseline bucket). Add the weights to the intercept, then squash:
+--     p = 1 / (1 + exp(-(intercept + sum of weights)))
+-- The weights live in dev_reference.score_weights. Change the WHERE to inspect
+-- any single opportunity.
 SELECT
     recipient_name,
     awarding_sub_agency_name,
     months_to_pop_end,
-    rs_pop_window_pts + rs_definitive_pts + rs_above_median_pts AS recompete_score,
-    is_lifetime_pts   + is_breadth_pts    + is_recency_pts      AS incumbent_strength,
-    rs_pop_window_pts, rs_definitive_pts, rs_above_median_pts,   -- why it's likely to recompete
-    is_lifetime_pts, is_breadth_pts, is_recency_pts             -- why the incumbent is strong
+    recompete_score,                          -- 100 * followon_prob * (1 - retention_prob)
+    incumbent_strength,                       -- 100 * retention_prob
+    f_vehicle, f_rivals, ret_rivals_w,        -- why the incumbent is (not) strong
+    f_share, ret_share_w,
+    f_sole, ret_sole_source_w,
+    f_dur_fo, fo_duration_w                   -- why it's likely to come back to market
 FROM dev_marts.mart_recompete_candidates
 ORDER BY recompete_score DESC
 LIMIT 15;
+
+-- And the weights themselves:
+SELECT model, feature, level, weight, ROUND(EXP(weight), 2) AS odds_multiplier
+FROM dev_reference.score_weights
+ORDER BY model, feature, weight DESC;
 
 
 -- ── Challenge · put it together ─────────────────────────────────────────────

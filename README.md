@@ -106,14 +106,24 @@ Core entities: `agency`, `vendor` (resolved), `vendor_alias`, `award`, `award_tr
 
 ## Scoring
 
-Every score is transparent SQL with a per-component breakdown surfaced in the UI. No black-box ML.
+Both scores come from two small, backtested logistic "scorecards". Every input is a named bucket, each bucket's weight is stored in `dbt/seeds/score_weights.csv`, and the UI shows how much each factor moves the score.
 
-| Score | Scale | Components |
-|---|---|---|
-| Recompete likelihood | 0–100 | POP-end proximity · contract type · agency recompete rate · value vs. median · recent POP mods · set-aside changes |
-| Incumbent strength | 0–100 | Cumulative $ · win rate · recency · breadth · option-exercise ratio |
-| Market HHI | 0–10000 | `SUM((share%)²)` per `(agency, NAICS)` cell |
-| White-space | directional | cell $ × 1/HHI × growth × (1 − barrier proxy) |
+| Score | Scale | Meaning | Factors |
+|---|---|---|---|
+| Incumbent strength | 0–100 | P(incumbent wins the follow-on) | share of the office's spend on this PSC · number of rival vendors there · incumbent's past awards there · vehicle · sole-source · duration |
+| Recompete score | 0–100 | P(follow-on) × (1 − incumbent strength): the chance a **new** vendor wins it | follow-on factors: vehicle · duration · size · pricing |
+
+Timing is not part of either score. Filter on months to POP end instead.
+
+**How the weights are fitted.** USASpending has no predecessor→successor links, so `int_score_backtest` infers them. A follow-on is an award from the same office and PSC starting within −180/+365 days of the end date. All features are point-in-time. `pipelines/fit_scores.py` fits both models and writes the seed. Re-fit after any scope change:
+
+```bash
+dbt run -s +int_score_backtest
+python pipelines/fit_scores.py        # prints validation, writes the seed
+dbt seed && dbt run
+```
+
+Validation used a time split: fit on awards that ended before 2021, test on later ones. Retention AUC is **0.84**, versus 0.56 for the old points-based score. Follow-on AUC is 0.64. The same retention model reaches 0.76 on a placebo window 3–5 years out, so part of the signal comes from the matching method. Read the scores as a ranking, not exact odds. Details are in `sql/analysis.sql` §3.
 
 ---
 

@@ -18,3 +18,27 @@ models:
           - not_null
       - name: pop_current_end_date
         description: Most recent period-of-performance end date — drives recompete timing.
+
+  - name: mart_recompete_candidates
+    description: >
+      Active awards (POP end -3..+36 months) scored with the backtested
+      scorecards in seeds/score_weights.csv. See the model header.
+    columns:
+      - name: award_unique_key
+        tests:
+          - unique
+          - not_null
+      - name: incumbent_strength
+        description: 100 * P(incumbent wins the follow-on).
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: recompete_score
+        description: 100 * P(follow-on) * (1 - P(incumbent wins)).
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100

@@ -81,13 +81,64 @@ class Health(BaseModel):
     version: str
 
 
+class ScoreFactor(BaseModel):
+    model: str  # "followon" (will it come back to market?) | "retention" (can the incumbent hold it?)
+    label: str
+    value: str
+    effect: float  # log-odds vs. the feature's reference level; exp(effect) = odds multiplier
+
+
 class ScoreBreakdown(BaseModel):
-    pop_window_pts: int
-    definitive_pts: int
-    above_median_pts: int
-    lifetime_pts: int
-    breadth_pts: int
-    recency_pts: int
+    followon_prob: float
+    retention_prob: float
+    factors: list[ScoreFactor]
+
+
+# (model, feature, bin column, label, {bin level: readable value}).
+# Weights come from dbt/seeds/score_weights.csv via mart_recompete_candidates.
+SCORE_FACTORS = [
+    ("followon", "vehicle", "f_vehicle", "Award vehicle",
+     {"bpa": "BPA call", "order": "Task/delivery order", "standalone": "Standalone contract / PO"}),
+    ("followon", "duration", "f_dur_fo", "Period of performance",
+     {"lt1": "Under 1 year", "1_2": "1–2 years", "2_3": "2–3 years", "3_5": "3–5 years", "5up": "5+ years"}),
+    ("followon", "size", "f_size", "Obligated to date",
+     {"lt1m": "Under $1M", "1_10m": "$1–10M", "10_30m": "$10–30M", "30mup": "$30M+"}),
+    ("followon", "pricing", "f_pricing", "Pricing",
+     {"fixed": "Fixed price", "lh_tm": "Labor hours / T&M", "cost": "Cost reimbursement"}),
+    ("retention", "share", "f_share", "Incumbent share of office spend",
+     {"lt15": "Under 15%", "15_30": "15–30%", "30_50": "30–50%", "50_80": "50–80%", "80up": "80%+"}),
+    ("retention", "rivals", "f_rivals", "Vendors winning at this office",
+     {"0_1": "0–1", "2_3": "2–3", "4_7": "4–7", "8_15": "8–15", "16up": "16+"}),
+    ("retention", "tenure", "f_tenure", "Incumbent's other awards here",
+     {"0": "None", "1": "1", "2_3": "2–3", "4up": "4+"}),
+    ("retention", "vehicle", "f_vehicle", "Award vehicle",
+     {"bpa": "BPA call", "order": "Task/delivery order", "standalone": "Standalone contract / PO"}),
+    ("retention", "sole_source", "f_sole", "Sole-source award",
+     {"yes": "Yes", "no": "No"}),
+    ("retention", "duration", "f_dur_ret", "Period of performance",
+     {"lt1": "Under 1 year", "1_2": "1–2 years", "2up": "2+ years"}),
+]
+SCORE_COLUMNS = ", ".join(
+    ["followon_prob", "retention_prob"]
+    + sorted({col for *_, col, _, _ in SCORE_FACTORS})
+    + [f"{'fo' if m == 'followon' else 'ret'}_{feat}_w" for m, feat, *_ in SCORE_FACTORS]
+)
+
+
+def _breakdown(row: Any) -> ScoreBreakdown:
+    return ScoreBreakdown(
+        followon_prob=round(float(row["followon_prob"] or 0), 3),
+        retention_prob=round(float(row["retention_prob"] or 0), 3),
+        factors=[
+            ScoreFactor(
+                model=model,
+                label=label,
+                value=levels.get(row[col], str(row[col])),
+                effect=round(float(row[f"{'fo' if model == 'followon' else 'ret'}_{feat}_w"] or 0), 3),
+            )
+            for model, feat, col, label, levels in SCORE_FACTORS
+        ],
+    )
 
 
 class RecompeteCandidate(BaseModel):
@@ -310,15 +361,10 @@ def list_recompetes(
             )::float                                                          AS value_dollars,
             recompete_score,
             incumbent_strength,
-            rs_pop_window_pts,
-            rs_definitive_pts,
-            rs_above_median_pts,
-            is_lifetime_pts,
-            is_breadth_pts,
-            is_recency_pts
+            {SCORE_COLUMNS}
         FROM dev_marts.mart_recompete_candidates
         WHERE {where}
-        ORDER BY recompete_score DESC, total_obligated DESC NULLS LAST
+        ORDER BY recompete_score DESC, months_to_pop_end ASC, total_obligated DESC NULLS LAST
         LIMIT :lim
     """)
 
@@ -340,14 +386,7 @@ def list_recompetes(
                     value_millions=value_m,
                     recompete_score=int(row["recompete_score"] or 0),
                     incumbent_strength=int(row["incumbent_strength"] or 0),
-                    breakdown=ScoreBreakdown(
-                        pop_window_pts=int(row["rs_pop_window_pts"] or 0),
-                        definitive_pts=int(row["rs_definitive_pts"] or 0),
-                        above_median_pts=int(row["rs_above_median_pts"] or 0),
-                        lifetime_pts=int(row["is_lifetime_pts"] or 0),
-                        breadth_pts=int(row["is_breadth_pts"] or 0),
-                        recency_pts=int(row["is_recency_pts"] or 0),
-                    ),
+                    breakdown=_breakdown(row),
                 )
             )
     return rows
@@ -472,16 +511,21 @@ def get_contract(piid: str) -> ContractDetail:
 
     with eng.connect() as conn:
         # Header: prefer the candidates mart row (has scores); fall back to staging
+        # PIIDs are only unique per awarding office, so a PIID can match more
+        # than one award. Show the largest and keep its history separate.
         cand = conn.execute(text("""
             SELECT * FROM dev_marts.mart_recompete_candidates WHERE piid = :p
-        """), {"p": piid}).mappings().one_or_none()
+            ORDER BY total_obligated DESC NULLS LAST
+            LIMIT 1
+        """), {"p": piid}).mappings().first()
+        key = {"p": piid, "k": cand["award_unique_key"] if cand else None}
 
         first = conn.execute(text("""
             SELECT * FROM dev_staging.stg_usaspending__award_transactions
-            WHERE piid = :p
+            WHERE piid = :p AND (CAST(:k AS text) IS NULL OR award_unique_key = :k)
             ORDER BY action_date ASC, modification_number ASC
             LIMIT 1
-        """), {"p": piid}).mappings().one_or_none()
+        """), key).mappings().one_or_none()
 
         if not first and not cand:
             raise HTTPException(404, f"contract {piid} not found")
@@ -495,9 +539,9 @@ def get_contract(piid: str) -> ContractDetail:
                 COALESCE(federal_action_obligation, 0)::float AS obligation_delta,
                 pop_current_end_date
             FROM dev_staging.stg_usaspending__award_transactions
-            WHERE piid = :p
+            WHERE piid = :p AND (CAST(:k AS text) IS NULL OR award_unique_key = :k)
             ORDER BY action_date ASC, modification_number ASC
-        """), {"p": piid}).mappings().all()
+        """), key).mappings().all()
 
     base = cand or first
     cumulative = 0.0
@@ -514,16 +558,7 @@ def get_contract(piid: str) -> ContractDetail:
             pop_end_as_of=m["pop_current_end_date"].isoformat() if m["pop_current_end_date"] else None,
         ))
 
-    breakdown = None
-    if cand:
-        breakdown = ScoreBreakdown(
-            pop_window_pts=int(cand["rs_pop_window_pts"] or 0),
-            definitive_pts=int(cand["rs_definitive_pts"] or 0),
-            above_median_pts=int(cand["rs_above_median_pts"] or 0),
-            lifetime_pts=int(cand["is_lifetime_pts"] or 0),
-            breadth_pts=int(cand["is_breadth_pts"] or 0),
-            recency_pts=int(cand["is_recency_pts"] or 0),
-        )
+    breakdown = _breakdown(cand) if cand else None
 
     pop_start = base.get("pop_start_date") if base else None
     pop_end = (cand or first).get("pop_current_end_date") if (cand or first) else None
