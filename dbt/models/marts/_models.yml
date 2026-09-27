@@ -6,6 +6,13 @@ models:
       Award-grain rollup of USASpending transaction data. One row per
       `award_unique_key`. Total obligated is the sum across all mods; the
       classification and agency fields take the most recent non-null value.
+    tests:
+      # A task order's PIID is only unique inside its parent IDV, so the
+      # business key is (parent_piid, piid), never piid alone.
+      # Fails as of 2026-09-27: 3 pairs from 2004-05 Coast Guard orders appear twice,
+      # once under DOT agency id 6950 and once under DHS 7008.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [parent_piid, piid]
     columns:
       - name: award_unique_key
         description: Stable award identifier.
@@ -23,6 +30,11 @@ models:
     description: >
       Active awards (POP end -3..+36 months) scored with the backtested
       scorecards in seeds/score_weights.csv. See the model header.
+    tests:
+      # What /contracts/{piid}?parent_piid=... relies on: one candidate per
+      # (parent_piid, piid). piid alone repeats (e.g. 75FCMC22F0001 x 11).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [parent_piid, piid]
     columns:
       - name: award_unique_key
         tests:
