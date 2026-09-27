@@ -1,6 +1,7 @@
 {#
-  Cleaned, typed view over the raw USASpending transaction feed.
-  One row per modification action (grain unchanged).
+  Cleaned, typed view over the raw USASpending contract feed.
+  One row per award (award_unique_key), as loaded: the ingest pulls award
+  summaries, not per-modification transactions (grain unchanged).
   All downstream logic reads from this model, not from `raw` directly.
 #}
 

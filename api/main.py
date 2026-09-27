@@ -13,17 +13,27 @@ Run locally:
 from __future__ import annotations
 
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 load_dotenv()
+
+# Which dbt target's schemas to read: {SCHEMA}_marts, {SCHEMA}_staging.
+# "dev" is what production serves; point it at a throwaway build to test.
+SCHEMA = os.getenv("SUNLIGHT_SCHEMA", "dev")
+if not re.fullmatch(r"[a-z_][a-z0-9_]*", SCHEMA):
+    raise RuntimeError(f"invalid SUNLIGHT_SCHEMA: {SCHEMA!r}")
+MARTS = f"{SCHEMA}_marts"
+STAGING = f"{SCHEMA}_staging"
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +153,8 @@ def _breakdown(row: Any) -> ScoreBreakdown:
 
 class RecompeteCandidate(BaseModel):
     piid: str
+    parent_piid: str | None
+    award_unique_key: str
     naics: str
     title: str
     sub_agency: str
@@ -217,7 +229,7 @@ def radar_summary(
         agg = conn.execute(text(f"""
             SELECT COUNT(*) AS candidates,
                    COALESCE(SUM(total_obligated), 0)::float / 1e6 AS at_stake_m
-            FROM dev_marts.mart_recompete_candidates
+            FROM {MARTS}.mart_recompete_candidates
             WHERE {where}
         """), params).mappings().one()
         top = conn.execute(text(f"""
@@ -225,7 +237,7 @@ def radar_summary(
                    recipient_uei AS uei,
                    SUM(total_obligated)::float / 1e6 AS m,
                    COUNT(*) AS n
-            FROM dev_marts.mart_recompete_candidates
+            FROM {MARTS}.mart_recompete_candidates
             WHERE {where} AND recipient_uei IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 3 DESC NULLS LAST
@@ -261,7 +273,7 @@ def coverage_summary() -> CoverageSummary:
         # today count toward the displayed range. Aside from that typo, every
         # award in the loaded data ends by 2034. Award counts and dollars still
         # include every row.
-        agg = conn.execute(text("""
+        agg = conn.execute(text(f"""
             SELECT COUNT(*) AS award_count,
                    COALESCE(SUM(total_obligated), 0)::float / 1e6 AS obligated_m,
                    MIN(EXTRACT(YEAR FROM pop_start_date))::int AS first_pop_year,
@@ -269,19 +281,19 @@ def coverage_summary() -> CoverageSummary:
                        FILTER (WHERE pop_current_end_date
                                <= CURRENT_DATE + INTERVAL '15 years')::int
                        AS last_pop_year
-            FROM dev_marts.mart_awards
+            FROM {MARTS}.mart_awards
         """)).mappings().one()
-        agencies = conn.execute(text("""
+        agencies = conn.execute(text(f"""
             SELECT awarding_agency_name AS name,
                    SUM(total_obligated) AS obligated
-            FROM dev_marts.mart_awards
+            FROM {MARTS}.mart_awards
             WHERE awarding_agency_name IS NOT NULL
             GROUP BY 1
             ORDER BY 2 DESC NULLS LAST
         """)).mappings().all()
-        naics = conn.execute(text("""
+        naics = conn.execute(text(f"""
             SELECT naics_code
-            FROM dev_marts.mart_awards
+            FROM {MARTS}.mart_awards
             WHERE naics_code IS NOT NULL
             GROUP BY 1
             ORDER BY 1
@@ -305,11 +317,11 @@ def list_sub_agencies() -> list[SubAgency]:
     if eng is None:
         return []
     with eng.connect() as conn:
-        rows = conn.execute(text("""
+        rows = conn.execute(text(f"""
             SELECT awarding_sub_agency_code AS code,
                    MAX(awarding_sub_agency_name) AS name,
                    COUNT(*) AS n
-            FROM dev_marts.mart_recompete_candidates
+            FROM {MARTS}.mart_recompete_candidates
             WHERE awarding_sub_agency_code IS NOT NULL
             GROUP BY 1 ORDER BY 3 DESC
         """)).mappings().all()
@@ -332,7 +344,7 @@ def list_recompetes(
     max_months: int = 36,
     limit: int = 100,
 ) -> list[RecompeteCandidate]:
-    """List scored recompete candidates from dev_marts.mart_recompete_candidates.
+    """List scored recompete candidates from {SCHEMA}_marts.mart_recompete_candidates.
 
     The mart already filters to the active POP-end window (-3 to +36 months);
     `max_months` narrows further on read.
@@ -346,6 +358,8 @@ def list_recompetes(
     sql = text(f"""
         SELECT
             COALESCE(piid, award_unique_key)                                  AS piid,
+            parent_piid,
+            award_unique_key,
             COALESCE(naics_code, '')                                          AS naics,
             COALESCE(naics_description, piid, award_unique_key)               AS title,
             COALESCE(awarding_sub_agency_name, awarding_agency_name, '')      AS sub_agency,
@@ -362,7 +376,7 @@ def list_recompetes(
             recompete_score,
             incumbent_strength,
             {SCORE_COLUMNS}
-        FROM dev_marts.mart_recompete_candidates
+        FROM {MARTS}.mart_recompete_candidates
         WHERE {where}
         ORDER BY recompete_score DESC, months_to_pop_end ASC, total_obligated DESC NULLS LAST
         LIMIT :lim
@@ -376,6 +390,8 @@ def list_recompetes(
             rows.append(
                 RecompeteCandidate(
                     piid=str(row["piid"] or ""),
+                    parent_piid=row["parent_piid"],
+                    award_unique_key=str(row["award_unique_key"]),
                     naics=str(row["naics"] or ""),
                     title=str(row["title"] or ""),
                     sub_agency=str(row["sub_agency"] or ""),
@@ -394,6 +410,8 @@ def list_recompetes(
 
 class VendorAward(BaseModel):
     piid: str
+    parent_piid: str | None
+    award_unique_key: str
     sub_agency: str
     pop_end: str
     value_millions: float
@@ -421,20 +439,22 @@ def get_vendor(vendor_id: str) -> VendorProfile:
         raise HTTPException(503, "DB not configured")
 
     with eng.connect() as conn:
-        v = conn.execute(text("""
-            SELECT * FROM dev_marts.mart_vendors WHERE vendor_uei = :uei
+        v = conn.execute(text(f"""
+            SELECT * FROM {MARTS}.mart_vendors WHERE vendor_uei = :uei
         """), {"uei": vendor_id}).mappings().one_or_none()
         if not v:
             raise HTTPException(404, f"vendor {vendor_id} not found")
 
-        awards = conn.execute(text("""
+        awards = conn.execute(text(f"""
             SELECT
                 COALESCE(piid, award_unique_key) AS piid,
+                parent_piid,
+                award_unique_key,
                 COALESCE(awarding_sub_agency_name, '') AS sub_agency,
                 pop_current_end_date,
                 COALESCE(total_obligated, 0)::float AS value_dollars,
                 recompete_score
-            FROM dev_marts.mart_recompete_candidates
+            FROM {MARTS}.mart_recompete_candidates
             WHERE recipient_uei = :uei
             ORDER BY recompete_score DESC, total_obligated DESC NULLS LAST
             LIMIT 25
@@ -454,6 +474,8 @@ def get_vendor(vendor_id: str) -> VendorProfile:
         active_awards=[
             VendorAward(
                 piid=str(a["piid"] or ""),
+                parent_piid=a["parent_piid"],
+                award_unique_key=str(a["award_unique_key"]),
                 sub_agency=str(a["sub_agency"] or ""),
                 pop_end=a["pop_current_end_date"].isoformat() if a["pop_current_end_date"] else "N/A",
                 value_millions=round(float(a["value_dollars"] or 0) / 1_000_000, 2),
@@ -477,6 +499,7 @@ class ContractModification(BaseModel):
 class ContractDetail(BaseModel):
     piid: str
     parent_piid: str | None
+    award_unique_key: str
     title: str
     awarding_agency_name: str
     awarding_sub_agency_name: str
@@ -503,34 +526,99 @@ class ContractDetail(BaseModel):
     modifications: list[ContractModification]
 
 
-@app.get("/contracts/{piid:path}", response_model=ContractDetail, tags=["contract"])
-def get_contract(piid: str) -> ContractDetail:
+class ContractMatch(BaseModel):
+    parent_piid: str | None
+    award_unique_key: str
+    incumbent_name: str
+    incumbent_uei: str | None
+    awarding_sub_agency_name: str
+    pop_current_end_date: str | None
+    total_obligated_millions: float
+
+
+class ContractChoices(BaseModel):
+    piid: str
+    matches: list[ContractMatch]
+
+
+@app.get(
+    "/contracts/{piid:path}",
+    response_model=ContractDetail,
+    tags=["contract"],
+    responses={
+        300: {
+            "model": ContractChoices,
+            "description": "The PIID names more than one contract; retry with "
+                           "parent_piid or award_unique_key from `matches`.",
+        },
+        404: {"description": "No contract matches."},
+    },
+)
+def get_contract(
+    piid: str,
+    parent_piid: str | None = None,
+    award_unique_key: str | None = None,
+) -> ContractDetail | JSONResponse:
     eng = get_engine()
     if eng is None:
         raise HTTPException(503, "DB not configured")
 
-    with eng.connect() as conn:
-        # Header: prefer the candidates mart row (has scores); fall back to staging
-        # PIIDs are only unique per awarding office, so a PIID can match more
-        # than one award. Show the largest and keep its history separate.
-        cand = conn.execute(text("""
-            SELECT * FROM dev_marts.mart_recompete_candidates WHERE piid = :p
-            ORDER BY total_obligated DESC NULLS LAST
-            LIMIT 1
-        """), {"p": piid}).mappings().first()
-        key = {"p": piid, "k": cand["award_unique_key"] if cand else None}
+    # A PIID is not a contract ID. Order numbers restart under every parent
+    # IDV (75FCMC22F0001 is 11 task orders under 11 vehicles), and a few old
+    # awards repeat even (parent_piid, piid) under two agency ids. Only
+    # award_unique_key is unique, so resolve to exactly one key before reading
+    # anything, and never pick among several.
+    if award_unique_key:
+        where, params = "award_unique_key = :k", {"k": award_unique_key}
+    elif parent_piid:
+        where, params = "piid = :p AND parent_piid = :parent", {"p": piid, "parent": parent_piid}
+    else:
+        where, params = "piid = :p", {"p": piid}
 
-        first = conn.execute(text("""
-            SELECT * FROM dev_staging.stg_usaspending__award_transactions
-            WHERE piid = :p AND (CAST(:k AS text) IS NULL OR award_unique_key = :k)
+    with eng.connect() as conn:
+        matches = conn.execute(text(f"""
+            SELECT award_unique_key, piid, parent_piid, recipient_name, recipient_uei,
+                   awarding_sub_agency_name, pop_current_end_date,
+                   COALESCE(total_obligated, 0)::float AS total_obligated
+            FROM {MARTS}.mart_awards
+            WHERE {where}
+            ORDER BY total_obligated DESC NULLS LAST, award_unique_key
+        """), params).mappings().all()
+
+        if not matches:
+            raise HTTPException(404, f"contract {piid} not found")
+        if len(matches) > 1:
+            choices = ContractChoices(piid=piid, matches=[
+                ContractMatch(
+                    parent_piid=m["parent_piid"],
+                    award_unique_key=m["award_unique_key"],
+                    incumbent_name=str(m["recipient_name"] or "UNKNOWN"),
+                    incumbent_uei=m["recipient_uei"],
+                    awarding_sub_agency_name=str(m["awarding_sub_agency_name"] or ""),
+                    pop_current_end_date=(m["pop_current_end_date"].isoformat()
+                                          if m["pop_current_end_date"] else None),
+                    total_obligated_millions=round(m["total_obligated"] / 1_000_000, 4),
+                )
+                for m in matches
+            ])
+            return JSONResponse(status_code=300, content=choices.model_dump())
+
+        key = {"k": matches[0]["award_unique_key"]}
+        piid = matches[0]["piid"]
+
+        # Header: prefer the candidates mart row (has scores); fall back to staging.
+        cand = conn.execute(text(f"""
+            SELECT * FROM {MARTS}.mart_recompete_candidates WHERE award_unique_key = :k
+        """), key).mappings().one_or_none()
+
+        first = conn.execute(text(f"""
+            SELECT * FROM {STAGING}.stg_usaspending__award_transactions
+            WHERE award_unique_key = :k
             ORDER BY action_date ASC, modification_number ASC
             LIMIT 1
         """), key).mappings().one_or_none()
 
-        if not first and not cand:
-            raise HTTPException(404, f"contract {piid} not found")
-
-        mods = conn.execute(text("""
+        mods = conn.execute(text(f"""
             SELECT
                 action_date,
                 COALESCE(modification_number, '') AS modification_number,
@@ -538,8 +626,8 @@ def get_contract(piid: str) -> ContractDetail:
                 COALESCE(transaction_description, '') AS description,
                 COALESCE(federal_action_obligation, 0)::float AS obligation_delta,
                 pop_current_end_date
-            FROM dev_staging.stg_usaspending__award_transactions
-            WHERE piid = :p AND (CAST(:k AS text) IS NULL OR award_unique_key = :k)
+            FROM {STAGING}.stg_usaspending__award_transactions
+            WHERE award_unique_key = :k
             ORDER BY action_date ASC, modification_number ASC
         """), key).mappings().all()
 
@@ -568,6 +656,7 @@ def get_contract(piid: str) -> ContractDetail:
     return ContractDetail(
         piid=piid,
         parent_piid=(base.get("parent_piid") if base else None) or None,
+        award_unique_key=key["k"],
         title=str((base.get("naics_description") if base else "") or piid),
         awarding_agency_name=str((base.get("awarding_agency_name") if base else "") or ""),
         awarding_sub_agency_name=str((base.get("awarding_sub_agency_name") if base else "") or ""),
@@ -623,8 +712,8 @@ def get_agency(agency_id: str) -> AgencyProfile:
         raise HTTPException(503, "DB not configured")
 
     with eng.connect() as conn:
-        a = conn.execute(text("""
-            SELECT * FROM dev_marts.mart_agency_summary WHERE agency_id = :id
+        a = conn.execute(text(f"""
+            SELECT * FROM {MARTS}.mart_agency_summary WHERE agency_id = :id
         """), {"id": agency_id}).mappings().one_or_none()
         if not a:
             raise HTTPException(404, f"agency {agency_id} not found")
@@ -634,7 +723,7 @@ def get_agency(agency_id: str) -> AgencyProfile:
         vendors = conn.execute(text(f"""
             SELECT recipient_uei, MAX(recipient_name) AS name,
                    SUM(total_obligated) AS obligated
-            FROM dev_marts.mart_awards
+            FROM {MARTS}.mart_awards
             WHERE {col} = :id AND recipient_uei IS NOT NULL
             GROUP BY 1 ORDER BY 3 DESC NULLS LAST LIMIT 8
         """), {"id": agency_id}).mappings().all()

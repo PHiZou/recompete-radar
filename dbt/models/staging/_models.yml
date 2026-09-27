@@ -3,13 +3,19 @@ version: 2
 models:
   - name: stg_usaspending__award_transactions
     description: >
-      Cleaned, typed view over raw USASpending prime contract transactions.
-      One row per modification action. Dollars coalesced to 0.
+      Cleaned, typed view over the raw USASpending prime contract feed.
+      One row per award (award_unique_key): the ingest pulls award summaries,
+      so modification_number is null and there is no per-mod history.
+      Dollars coalesced to 0.
     columns:
       - name: award_unique_key
         description: Stable key identifying a single award across all its mods.
         tests:
           - not_null
+      - name: parent_piid
+        description: >
+          PIID of the parent IDV for task/delivery orders; null for
+          definitive contracts. A PIID is only unique within its parent.
       - name: action_date
         description: Modification signature date.
         tests:

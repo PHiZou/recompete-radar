@@ -9,16 +9,28 @@ models:
     tests:
       # A task order's PIID is only unique inside its parent IDV, so the
       # business key is (parent_piid, piid), never piid alone.
-      # Fails as of 2026-09-27: 3 pairs from 2004-05 Coast Guard orders appear twice,
-      # once under DOT agency id 6950 and once under DHS 7008.
+      # Scoped to post-2010 because 3 Coast Guard orders from 2004-05
+      # (HSCG3204DR00003HSCG3204J00000{1,2,3}) appear twice, once under DOT
+      # agency id 6950 ($0 copy) and once under DHS 7008. award_unique_key
+      # still tells them apart, and the API resolves those by that key.
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [parent_piid, piid]
+          config:
+            where: "pop_current_end_date >= '2010-01-01'"
     columns:
       - name: award_unique_key
-        description: Stable award identifier.
+        description: >
+          Stable award identifier and the only unique contract key:
+          CONT_AWD_<piid>_<piid agency>_<parent_piid or -NONE->_<parent agency>
+          (CONT_IDV_... for vehicles).
         tests:
           - unique
           - not_null
+      - name: parent_piid
+        description: >
+          PIID of the parent IDV (IDIQ, GWAC, BPA) a task/delivery order was
+          placed under; null for definitive contracts. Order PIIDs restart
+          under each IDV, so a contract is (parent_piid, piid), not piid.
       - name: total_obligated
         description: Sum of federal action obligations across all mods.
         tests:
