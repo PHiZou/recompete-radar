@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import ScorePill, { scoreTone } from "@/components/score-pill";
 import { vendorProfiles as mockVendorProfiles } from "@/lib/mock-data";
+import { contractHref } from "@/lib/contract-href";
 
 const fmtM = (m: number) =>
   m >= 1000 ? `$${(m / 1000).toFixed(2)}B` : `$${m.toFixed(1)}M`;
 
 type VendorAward = {
   piid: string;
+  parent_piid: string | null;
+  award_unique_key: string;
   sub_agency: string;
   pop_end: string;
   value_millions: number;
@@ -44,6 +47,8 @@ async function fetchVendor(id: string): Promise<VendorProfile | null> {
       top_sub_agency_name: mock.topAgencies.split(" · ")[0] ?? "",
       active_awards: mock.activeDhsAwards.map((a) => ({
         piid: a.piid,
+        parent_piid: null,
+        award_unique_key: a.piid, // mock PIIDs are unique
         sub_agency: a.subAgency,
         pop_end: a.popEnd,
         value_millions: a.valueMillions,
@@ -151,10 +156,10 @@ export default async function VendorPage({
             </thead>
             <tbody className="divide-y divide-[#141417]">
               {v.active_awards.map((a) => (
-                <tr key={a.piid}>
+                <tr key={a.award_unique_key}>
                   <td className="px-4 py-3 mono">
                     <a
-                      href={`/contracts/${encodeURIComponent(a.piid)}`}
+                      href={contractHref(a.piid, a.parent_piid)}
                       className="hover:text-amber-400 hover:underline"
                     >
                       {a.piid}

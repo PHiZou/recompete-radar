@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import ScorePill, { scoreTone } from "@/components/score-pill";
 import ScoreFactors, { type ScoreBreakdown } from "@/components/score-factors";
+import { contractHref, contractHrefByKey } from "@/lib/contract-href";
 
 const fmtM = (m: number | null | undefined) =>
   m == null ? "—" : Math.abs(m) >= 1 ? `$${m.toFixed(2)}M` : `$${(m * 1000).toFixed(0)}K`;
@@ -24,6 +25,7 @@ type Modification = {
 type ContractDetail = {
   piid: string;
   parent_piid: string | null;
+  award_unique_key: string;
   title: string;
   awarding_agency_name: string;
   awarding_sub_agency_name: string;
@@ -52,16 +54,52 @@ type ContractDetail = {
 
 const COLLAPSE_AFTER = 10;
 
-async function fetchContract(piid: string): Promise<ContractDetail | null> {
+// One row of the API's HTTP 300 body: an award that shares this PIID.
+type ContractMatch = {
+  parent_piid: string | null;
+  award_unique_key: string;
+  incumbent_name: string;
+  incumbent_uei: string | null;
+  awarding_sub_agency_name: string;
+  pop_current_end_date: string | null;
+  total_obligated_millions: number;
+};
+
+type Ambiguous = { piid: string; matches: ContractMatch[] };
+
+type ContractResult =
+  | { kind: "ok"; contract: ContractDetail }
+  | { kind: "ambiguous"; body: Ambiguous }
+  | { kind: "not_found" }
+  | { kind: "error"; message: string };
+
+// Task-order PIIDs are only unique within their parent IDV, so the API
+// narrows by parent_piid / award_unique_key and answers 300 when a bare PIID
+// still names more than one award.
+async function fetchContract(piid: string, identity: URLSearchParams): Promise<ContractResult> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const qs = identity.toString();
+  let res: Response;
   try {
-    const res = await fetch(`${base}/contracts/${encodeURIComponent(piid)}`, {
+    res = await fetch(`${base}/contracts/${encodeURIComponent(piid)}${qs ? `?${qs}` : ""}`, {
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    return (await res.json()) as ContractDetail;
   } catch {
-    return null;
+    return { kind: "error", message: "The Sunlight API could not be reached." };
+  }
+  if (res.status === 404) return { kind: "not_found" };
+  try {
+    if (res.status === 300) {
+      const body = (await res.json()) as Ambiguous;
+      if (Array.isArray(body?.matches)) return { kind: "ambiguous", body };
+      return { kind: "error", message: "The API returned an unreadable list of matches." };
+    }
+    if (!res.ok) {
+      return { kind: "error", message: `The API returned HTTP ${res.status}.` };
+    }
+    return { kind: "ok", contract: (await res.json()) as ContractDetail };
+  } catch {
+    return { kind: "error", message: `The API returned an unreadable response (HTTP ${res.status}).` };
   }
 }
 
@@ -70,11 +108,25 @@ export default async function ContractPage({
   searchParams,
 }: {
   params: { piid: string };
-  searchParams: { all?: string };
+  searchParams: { all?: string; parent_piid?: string; award_unique_key?: string };
 }) {
   const piid = decodeURIComponent(params.piid);
-  const c = await fetchContract(piid);
-  if (!c) notFound();
+  const identity = new URLSearchParams();
+  if (searchParams.parent_piid) identity.set("parent_piid", searchParams.parent_piid);
+  if (searchParams.award_unique_key) identity.set("award_unique_key", searchParams.award_unique_key);
+
+  const result = await fetchContract(piid, identity);
+  if (result.kind === "not_found") notFound();
+  if (result.kind === "error") return <ContractError piid={piid} message={result.message} />;
+  if (result.kind === "ambiguous") return <ContractPicker piid={piid} body={result.body} />;
+  const c = result.contract;
+
+  // "show all" / "collapse" must keep the identity params, or the page would
+  // fall back to the bare PIID and land on the picker.
+  const withAll = new URLSearchParams(identity);
+  withAll.set("all", "1");
+  const allHref = `?${withAll.toString()}`;
+  const collapseHref = `?${identity.toString()}`;
 
   const showAll = searchParams.all === "1";
   const mods = showAll ? c.modifications : c.modifications.slice(-COLLAPSE_AFTER).reverse();
@@ -82,13 +134,7 @@ export default async function ContractPage({
 
   return (
     <section>
-      <div className="text-xs text-zinc-500 mb-4 mono">
-        <a href="/" className="hover:text-zinc-300">radar</a>
-        <span className="mx-1">/</span>
-        <span>contracts</span>
-        <span className="mx-1">/</span>
-        <span className="text-zinc-100">{c.piid}</span>
-      </div>
+      <Breadcrumb piid={c.piid} />
 
       <div className="card p-4 sm:p-6 mb-4">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-6">
@@ -166,10 +212,10 @@ export default async function ContractPage({
           <div className="text-xs text-zinc-500">
             {c.modification_count} action{c.modification_count === 1 ? "" : "s"}
             {!showAll && hidden > 0 && (
-              <> · showing latest {mods.length} · <a href="?all=1" className="text-amber-400 hover:underline">show all</a></>
+              <> · showing latest {mods.length} · <a href={allHref} className="text-amber-400 hover:underline">show all</a></>
             )}
             {showAll && c.modification_count > COLLAPSE_AFTER && (
-              <> · <a href="?" className="text-amber-400 hover:underline">collapse</a></>
+              <> · <a href={collapseHref} className="text-amber-400 hover:underline">collapse</a></>
             )}
           </div>
         </div>
@@ -216,6 +262,96 @@ export default async function ContractPage({
 
       <div className="mt-4 text-xs text-zinc-500 mono">
         Source · USASpending award summaries.
+      </div>
+    </section>
+  );
+}
+
+function Breadcrumb({ piid }: { piid: string }) {
+  return (
+    <div className="text-xs text-zinc-500 mb-4 mono">
+      <a href="/" className="hover:text-zinc-300">radar</a>
+      <span className="mx-1">/</span>
+      <span>contracts</span>
+      <span className="mx-1">/</span>
+      <span className="text-zinc-100">{piid}</span>
+    </div>
+  );
+}
+
+function ContractError({ piid, message }: { piid: string; message: string }) {
+  return (
+    <section>
+      <Breadcrumb piid={piid} />
+      <div className="card p-4 sm:p-6">
+        <h1 className="text-xl font-semibold tracking-tight">
+          Couldn&apos;t load contract <span className="mono">{piid}</span>
+        </h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          {message} This is an error on our side, not a missing contract. Try again shortly.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function ContractPicker({ piid, body }: { piid: string; body: Ambiguous }) {
+  const matches = body.matches;
+  // Link by parent when that parent is unique among the matches; otherwise
+  // (a shared or missing parent) link by the exact award key.
+  const parentCounts = new Map<string, number>();
+  for (const m of matches) {
+    if (m.parent_piid) parentCounts.set(m.parent_piid, (parentCounts.get(m.parent_piid) ?? 0) + 1);
+  }
+  const hrefFor = (m: ContractMatch) =>
+    m.parent_piid && parentCounts.get(m.parent_piid) === 1
+      ? contractHref(piid, m.parent_piid)
+      : contractHrefByKey(piid, m.award_unique_key);
+
+  return (
+    <section>
+      <Breadcrumb piid={piid} />
+      <div className="card p-4 sm:p-6 mb-4">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+          <span className="mono">{piid}</span> is used by {matches.length} task orders under
+          different vehicles; pick one
+        </h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          Task-order numbers are only unique within their parent contract vehicle (IDV), so
+          this PIID alone doesn&apos;t identify one award.
+        </p>
+      </div>
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm row-hover">
+          <thead className="text-left text-zinc-500 text-xs uppercase tracking-wider">
+            <tr className="border-b border-[#1f1f23]">
+              <th className="px-4 py-2.5 font-medium">Parent IDV</th>
+              <th className="px-4 py-2.5 font-medium">Incumbent</th>
+              <th className="px-4 py-2.5 font-medium">Sub-agency</th>
+              <th className="px-4 py-2.5 font-medium mono">POP end</th>
+              <th className="px-4 py-2.5 font-medium text-right">Obligated</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#141417]">
+            {matches.map((m) => (
+              <tr key={m.award_unique_key}>
+                <td className="px-4 py-3 mono">
+                  <a href={hrefFor(m)} className="text-amber-400 hover:underline">
+                    {m.parent_piid ?? "(no parent)"}
+                  </a>
+                </td>
+                <td className="px-4 py-3">
+                  <a href={hrefFor(m)} className="hover:text-amber-400 hover:underline">
+                    {m.incumbent_name}
+                  </a>
+                </td>
+                <td className="px-4 py-3 text-zinc-300">{m.awarding_sub_agency_name}</td>
+                <td className="px-4 py-3 mono text-zinc-300">{m.pop_current_end_date ?? "—"}</td>
+                <td className="px-4 py-3 mono text-right">{fmtM(m.total_obligated_millions)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );

@@ -9,6 +9,9 @@ import type { ScoreBreakdown } from "@/components/score-factors";
 
 export type RecompeteCandidate = {
   piid: string;
+  // Live rows always carry these; mock rows don't (their PIIDs are unique).
+  parentPiid?: string | null;
+  awardUniqueKey?: string;
   naics: string;
   title: string;
   subAgency: string;
