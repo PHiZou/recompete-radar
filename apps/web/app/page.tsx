@@ -5,6 +5,7 @@ import {
   radarSummary as mockSummary,
   type RecompeteCandidate,
 } from "@/lib/mock-data";
+import { contractHref } from "@/lib/contract-href";
 
 const fmtM = (m: number) =>
   m >= 1000 ? `$${(m / 1000).toFixed(2)}B` : `$${m.toFixed(1)}M`;
@@ -49,6 +50,8 @@ async function fetchRecompetes(qs: string): Promise<RecompeteCandidate[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return data.map((r: any) => ({
     piid: r.piid,
+    parentPiid: r.parent_piid ?? null,
+    awardUniqueKey: r.award_unique_key,
     naics: r.naics,
     title: r.title,
     subAgency: r.sub_agency,
@@ -286,17 +289,17 @@ export default async function RadarPage({
           </thead>
           <tbody className="divide-y divide-[#141417]">
             {recompeteCandidates.map((r) => (
-              <tr key={r.piid} className="cursor-pointer">
+              <tr key={r.awardUniqueKey ?? r.piid} className="cursor-pointer">
                 <td className="px-4 py-3">
                   <a
-                    href={`/contracts/${encodeURIComponent(r.piid)}`}
+                    href={contractHref(r.piid, r.parentPiid)}
                     className="font-medium hover:text-amber-400 hover:underline"
                   >
                     {r.title}
                   </a>
                   <div className="mono text-xs text-zinc-500">
                     <a
-                      href={`/contracts/${encodeURIComponent(r.piid)}`}
+                      href={contractHref(r.piid, r.parentPiid)}
                       className="hover:text-zinc-300"
                     >
                       {r.piid}
