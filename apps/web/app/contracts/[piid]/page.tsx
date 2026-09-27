@@ -206,8 +206,11 @@ export default async function ContractPage({
 
       <div className="card overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 py-3 border-b border-[#1f1f23]">
-          <div className="text-sm font-medium">
-            Modification history
+          <div>
+            <div className="text-sm font-medium">Award summary (USAspending)</div>
+            <div className="text-xs text-zinc-500 mt-0.5">
+              Per-modification history isn&apos;t ingested yet; this shows the award-level record.
+            </div>
           </div>
           <div className="text-xs text-zinc-500">
             {c.modification_count} action{c.modification_count === 1 ? "" : "s"}
@@ -313,8 +316,7 @@ function ContractPicker({ piid, body }: { piid: string; body: Ambiguous }) {
       <Breadcrumb piid={piid} />
       <div className="card p-4 sm:p-6 mb-4">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          <span className="mono">{piid}</span> is used by {matches.length} task orders under
-          different vehicles; pick one
+          <span className="mono">{piid}</span> is used by {matches.length} different awards; pick one
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
           Task-order numbers are only unique within their parent contract vehicle (IDV), so

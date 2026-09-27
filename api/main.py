@@ -569,7 +569,9 @@ def get_contract(
     # award_unique_key is unique, so resolve to exactly one key before reading
     # anything, and never pick among several.
     if award_unique_key:
-        where, params = "award_unique_key = :k", {"k": award_unique_key}
+        # The key picks the award, but the path must still name its PIID,
+        # so a mismatched URL 404s instead of showing another contract.
+        where, params = "award_unique_key = :k AND piid = :p", {"k": award_unique_key, "p": piid}
     elif parent_piid:
         where, params = "piid = :p AND parent_piid = :parent", {"p": piid, "parent": parent_piid}
     else:

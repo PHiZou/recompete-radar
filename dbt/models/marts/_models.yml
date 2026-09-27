@@ -9,14 +9,14 @@ models:
     tests:
       # A task order's PIID is only unique inside its parent IDV, so the
       # business key is (parent_piid, piid), never piid alone.
-      # Scoped to post-2010 because 3 Coast Guard orders from 2004-05
+      # Scoped to post-2010 (and undated) awards because 3 Coast Guard orders from 2004-05
       # (HSCG3204DR00003HSCG3204J00000{1,2,3}) appear twice, once under DOT
       # agency id 6950 ($0 copy) and once under DHS 7008. award_unique_key
       # still tells them apart, and the API resolves those by that key.
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [parent_piid, piid]
           config:
-            where: "pop_current_end_date >= '2010-01-01'"
+            where: "pop_current_end_date is null or pop_current_end_date >= '2010-01-01'"
     columns:
       - name: award_unique_key
         description: >
